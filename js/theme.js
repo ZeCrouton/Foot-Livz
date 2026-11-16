@@ -78,15 +78,37 @@
         return p;
     }
 
+    // Couleurs de secours (principale, secondaire) quand la source ne fournit pas celles du club.
+    // Repérage par mot-clé dans le nom du club. Couleurs indicatives : à vérifier.
+    var CLUB_COLORS = [
+        ["paris saint", "004170", "da291c"], ["marseille", "2faee0", "ffffff"], ["lyon", "1f3c88", "ffffff"],
+        ["monaco", "e2001a", "ffffff"], ["lille", "e01e37", "1d2b5c"], ["lens", "e30613", "fdd000"],
+        ["rennes", "e30613", "000000"], ["nice", "d00027", "000000"], ["nantes", "fcd116", "009a44"],
+        ["strasbourg", "1e5da6", "ffffff"], ["arsenal", "ef0107", "ffffff"], ["chelsea", "034694", "ffffff"],
+        ["manchester city", "6cabdd", "1c2c5b"], ["liverpool", "c8102e", "ffffff"], ["manchester united", "da291c", "000000"],
+        ["tottenham", "132257", "ffffff"], ["newcastle", "241f20", "ffffff"], ["real madrid", "ffffff", "00529f"],
+        ["barcelona", "a50044", "004d98"], ["atletico", "cb3524", "ffffff"], ["juventus", "000000", "ffffff"],
+        ["inter milan", "0068a8", "000000"], ["internazionale", "0068a8", "000000"], ["ac milan", "fb090b", "000000"],
+        ["bayern", "dc052d", "ffffff"], ["dortmund", "fde100", "000000"]
+    ];
+    function fallbackColors(club) {
+        var n = String((club && club.name) || "").toLowerCase();
+        for (var i = 0; i < CLUB_COLORS.length; i++) {
+            if (n.indexOf(CLUB_COLORS[i][0]) >= 0) return { color: CLUB_COLORS[i][1], alt: CLUB_COLORS[i][2] };
+        }
+        return null;
+    }
+
     function applyFromPrefs() {
         var p = readPrefs();
         if (p.themeOff) return apply(NEUTRAL.color, NEUTRAL.alt);
         var club = p.club || DEFAULT_CLUB;
-        var color = hex(p.themeColor) || club.color || (club.id === DEFAULT_CLUB.id ? DEFAULT_CLUB.color : null);
-        var alt = hex(p.themeColor) ? null : (club.alt || (club.id === DEFAULT_CLUB.id ? DEFAULT_CLUB.alt : null));
+        var fb = fallbackColors(club);
+        var color = hex(p.themeColor) || club.color || (fb && fb.color) || (club.id === DEFAULT_CLUB.id ? DEFAULT_CLUB.color : null);
+        var alt = hex(p.themeColor) ? null : (club.alt || (fb && fb.alt) || (club.id === DEFAULT_CLUB.id ? DEFAULT_CLUB.alt : null));
         return apply(color, alt);
     }
 
-    FL.theme = { compute: compute, apply: apply, applyFromPrefs: applyFromPrefs, hex: hex };
+    FL.theme = { compute: compute, apply: apply, applyFromPrefs: applyFromPrefs, hex: hex, fallbackColors: fallbackColors };
     applyFromPrefs();
 })();

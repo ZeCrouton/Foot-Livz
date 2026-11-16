@@ -6,7 +6,8 @@
         var followed = FL.prefs.followed();
         var comps = FL.prefs.competitions();
         var theme = FL.prefs.theme();
-        var swatch = FL.theme.compute(theme.color || club.color, theme.color ? null : club.alt);
+        var fbc = FL.theme.fallbackColors(club) || {};
+        var swatch = FL.theme.compute(theme.color || club.color || fbc.color, theme.color ? null : (club.alt || fbc.alt));
 
         app.innerHTML =
             '<h3 class="day-title">Club de cœur</h3><div class="card pad">' +
