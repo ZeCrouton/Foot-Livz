@@ -7,7 +7,7 @@
         app.innerHTML = '<h3 class="day-title">Équipes suivies</h3><div class="card">' + list.map(function (t) {
             return '<div class="list-row"><a class="list-main" href="' + FL.teamUrl(t.league, t.id) + '">' + FL.logo(t.logo) +
                 "<span>" + FL.esc(t.name) + "</span></a></div>";
-        }).join("") + "</div>" + '<p><a class="btn" href="explorer.html">Chercher une équipe</a></p>';
+        }).join("") + "</div>" + '<p><a class="btn primary" href="explorer.html">Chercher une équipe</a></p>';
         return;
     }
 
@@ -19,12 +19,12 @@
         teamRef = (await FL.espn.teams(league, false)).find(function (t) { return t.id === id; }) || null;
     } catch (e) { /* on tentera avec les infos suivies */ }
     var followedRef = FL.prefs.followed().find(function (t) { return t.id === id; });
-    var team = teamRef || (followedRef ? { id: id, name: followedRef.name, short: followedRef.name, logo: followedRef.logo } : null);
+    var team = teamRef || (followedRef ? { id: id, name: followedRef.name, short: followedRef.name, logo: followedRef.logo, color: followedRef.color, alt: followedRef.alt } : null);
     if (!team) {
         app.innerHTML = FL.notice("Équipe introuvable dans cette compétition.", "error");
         return;
     }
-    var teamObj = { id: id, name: team.name, league: league, national: league.indexOf("fifa.") === 0 || league.indexOf("uefa.nations") === 0, logo: team.logo };
+    var teamObj = { id: id, name: team.name, league: league, national: league.indexOf("fifa.") === 0 || league.indexOf("uefa.nations") === 0, logo: team.logo, color: team.color || null, alt: team.alt || null };
     document.title = team.name + " - FootLivz";
 
     var settled = await Promise.allSettled([
@@ -53,7 +53,8 @@
     var following = FL.prefs.isFollowed(id);
     var header = '<div class="card team-header">' + FL.logo(team.logo) +
         '<div><h2>' + FL.esc(team.name) + "</h2><p class=\"muted\">" + FL.esc(FL.leagueName(league)) + (rank ? " · " + FL.esc(rank) : "") + "</p></div>" +
-        '<button type="button" id="follow" class="btn">' + (following ? "Ne plus suivre" : "Suivre") + "</button></div>";
+        '<div class="team-actions"><button type="button" id="follow" class="btn">' + (following ? "Ne plus suivre" : "Suivre") + "</button>" +
+        (FL.prefs.hasClub() && FL.prefs.club().id === id ? "" : '<button type="button" id="make-club" class="btn primary">Mon club de cœur</button>') + "</div></div>";
 
     var up = upcoming.length ? '<h3 class="day-title">Prochains matchs</h3><div class="card">' +
         upcoming.slice(0, 8).map(function (m) { return FL.matchRow(m, { showLeague: true }); }).join("") + "</div>" : "";
@@ -73,6 +74,13 @@
     }
 
     app.innerHTML = header + up + res + squad;
+
+    var mk = document.getElementById("make-club");
+    if (mk) mk.addEventListener("click", function () {
+        FL.prefs.setClub(teamObj);
+        FL.prefs.setTheme({ off: FL.prefs.theme().off, color: "" });
+        window.location.reload();
+    });
 
     document.getElementById("follow").addEventListener("click", function () {
         if (FL.prefs.isFollowed(id)) FL.prefs.unfollow(id);

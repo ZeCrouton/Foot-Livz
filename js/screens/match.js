@@ -2,7 +2,7 @@
     var FL = window.FL, app = document.getElementById("app");
     var params = FL.params();
     if (!params.id || !params.league) {
-        app.innerHTML = FL.notice("Aucun match sélectionné. Ouvrez un match depuis Live ou Agenda.");
+        window.location.replace("live.html");
         return;
     }
     app.innerHTML = '<p class="loading">Chargement du match…</p>';

@@ -2,41 +2,26 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2faee0">
+    <meta name="color-scheme" content="light dark">
     <title>Équipes - FootLivz</title>
-    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css?v=2">
+    <script src="../js/theme.js?v=2"></script>
 </head>
-<body>
-    <header>
-        <h1>FootLivz</h1>
-        <nav>
-            <ul>
-                <li><a href="../index.html">Accueil</a></li>
-                <li><a href="agenda.html">Agenda</a></li>
-                <li><a href="explorer.html">Explorer</a></li>
-                <li><a href="league.html">Ligues</a></li>
-                <li><a href="live.html">Live</a></li>
-                <li><a href="match.html">Matchs</a></li>
-                <li><a href="mercato.html">Mercato</a></li>
-                <li><a href="settings.html">Paramètres</a></li>
-                <li><a href="team.html" class="active">Équipes</a></li>
-            </ul>
-        </nav>
-    </header>
-    <main>
-        <section id="team">
-            <h2>Équipes</h2>
-            <div id="app"></div>
-        </section>
+<body data-page="team" data-root="../" data-title="Équipes">
+    <main class="page">
+        <h1 class="page-title" id="page-title">Équipes</h1>
+        <div id="app"></div>
     </main>
-    <footer>
-        <p>&copy; FootLivz. Données fournies par ESPN.</p>
-    </footer>
-    <script src="../js/data/leagues.js"></script>
-    <script src="../js/data/store.js"></script>
-    <script src="../js/data/espn.js"></script>
-    <script src="../js/ui.js"></script>
-    <script src="../js/main.js"></script>
-    <script src="../js/screens/team.js"></script>
+    <noscript><p style="padding:1rem">FootLivz a besoin de JavaScript pour fonctionner.</p></noscript>
+    <script src="../js/data/leagues.js?v=2"></script>
+    <script src="../js/data/store.js?v=2"></script>
+    <script src="../js/data/espn.js?v=2"></script>
+    <script src="../js/ui.js?v=2"></script>
+    <script src="../js/data/teams.js?v=2"></script>
+    <script src="../js/data/news.js?v=2"></script>
+    <script src="../js/layout.js?v=2"></script>
+    <script src="../js/screens/team.js?v=2"></script>
 </body>
 </html>

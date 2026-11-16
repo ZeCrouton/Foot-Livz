@@ -7,19 +7,8 @@
     var day = FL.startOfDay(Date.now()) + offset * 86400000 + 12 * 3600 * 1000;
     var isToday = offset === 0;
 
-    function leagues() {
-        var set = FL.prefs.competitions().concat(FL.prefs.followed().filter(function (t) { return !t.national; }).map(function (t) { return t.league; }));
-        set.push(club.league);
-        return set.filter(function (v, i, a) { return v && a.indexOf(v) === i; });
-    }
-
-    async function load(force) {
-        var res = await Promise.allSettled(leagues().map(function (lg) { return FL.espn.scoreboard(lg, day, force); }));
-        if (res.every(function (r) { return r.status === "rejected"; })) throw new Error("offline");
-        var stale = res.some(function (r) { return r.status === "rejected" || r.value.stale; });
-        var list = [];
-        res.forEach(function (r) { if (r.status === "fulfilled") list = list.concat(r.value.data); });
-        return { matches: FL.uniqueMatches(list), stale: stale };
+    function load(force) {
+        return FL.espn.dayMatches(day, force);
     }
 
     function render(d) {

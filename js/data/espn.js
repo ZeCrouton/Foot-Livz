@@ -8,9 +8,30 @@
     function cacheRead(key) {
         try { return JSON.parse(localStorage.getItem(CACHE_PREFIX + key)); } catch (e) { return null; }
     }
-    function cacheWrite(key, value) {
-        try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ t: Date.now(), v: value })); } catch (e) { /* quota */ }
+    // Supprime la moitié la plus ancienne du cache quand le stockage est plein
+    function purge() {
+        try {
+            var entries = [];
+            for (var i = 0; i < localStorage.length; i++) {
+                var k = localStorage.key(i);
+                if (k && k.indexOf(CACHE_PREFIX) === 0) {
+                    var m = (localStorage.getItem(k) || "").slice(0, 40).match(/"t":(\d+)/);
+                    entries.push({ k: k, t: m ? +m[1] : 0 });
+                }
+            }
+            entries.sort(function (a, b) { return a.t - b.t; });
+            entries.slice(0, Math.ceil(entries.length / 2)).forEach(function (e) { localStorage.removeItem(e.k); });
+        } catch (e) { /* ignore */ }
     }
+    function cacheWrite(key, value) {
+        var item;
+        try { item = JSON.stringify({ t: Date.now(), v: value }); } catch (e) { return; }
+        try { localStorage.setItem(CACHE_PREFIX + key, item); return; } catch (e) { /* quota : on fait de la place */ }
+        purge();
+        try { localStorage.setItem(CACHE_PREFIX + key, item); } catch (e) { /* abandon */ }
+    }
+    // Nettoyage des anciennes versions du cache (réponses brutes énormes qui saturaient le stockage)
+    try { localStorage.removeItem(CACHE_PREFIX + "allteams-v1"); } catch (e) { /* ignore */ }
 
     async function fetchAny(path) {
         var last = null;
@@ -31,14 +52,16 @@
         throw last || new Error("ESPN injoignable");
     }
 
-    // Renvoie la donnée fraîche, ou la dernière version connue (stale = true)
-    async function get(path, maxAgeSec, force) {
+    // Renvoie la donnée fraîche, ou la dernière version connue (stale = true).
+    // `transform` réduit la réponse avant mise en cache ; s'il lève une erreur, rien n'est mis en cache.
+    async function get(path, maxAgeSec, force, transform) {
         var c = cacheRead(path);
         if (!force && c && (Date.now() - c.t) / 1000 <= maxAgeSec) {
             return { data: c.v, stale: false, fetchedAt: c.t };
         }
         try {
-            var v = await fetchAny(path);
+            var raw = await fetchAny(path);
+            var v = transform ? transform(raw) : raw;
             cacheWrite(path, v);
             return { data: v, stale: false, fetchedAt: Date.now() };
         } catch (e) {
@@ -70,7 +93,8 @@
             short: t.shortDisplayName || t.displayName || t.name || "",
             abbr: t.abbreviation || "",
             logo: logo,
-            color: t.color || null
+            color: t.color || null,
+            alt: t.alternateColor || null
         };
     }
 
@@ -223,6 +247,10 @@
                 pos: pos,
                 teamId: t.id,
                 team: t.short,
+                teamName: t.name,
+                abbr: t.abbr,
+                color: t.color,
+                alt: t.alt,
                 logo: t.logo,
                 played: g("gamesPlayed"),
                 won: g("wins"),
@@ -361,6 +389,33 @@
         return out;
     }
 
+    function parseTeamsPayload(raw) {
+        var out = [];
+        ((raw && raw.sports) || []).forEach(function (sp) {
+            (sp.leagues || []).forEach(function (lg) {
+                (lg.teams || []).forEach(function (x) { if (x && x.team) out.push(parseTeam(x.team)); });
+            });
+        });
+        if (!out.length && raw && raw.teams) raw.teams.forEach(function (x) { out.push(parseTeam(x.team || x)); });
+        out = out.filter(function (t) { return t.id && t.name; });
+        if (!out.length) throw new Error("Liste d'équipes vide");
+        return out;
+    }
+
+    function parseNews(raw) {
+        return ((raw && raw.articles) || []).map(function (a) {
+            var web = a.links && a.links.web && a.links.web.href;
+            return {
+                title: a.headline || "",
+                description: a.description || "",
+                link: web || "",
+                date: parseDate(a.published || a.lastModified),
+                source: "ESPN",
+                image: a.images && a.images[0] && a.images[0].url || null
+            };
+        }).filter(function (a) { return a.title && a.link; });
+    }
+
     // ------------------------------------------------------------ API publique
 
     function sortByDate(list) { return list.sort(function (a, b) { return a.date - b.date; }); }
@@ -396,44 +451,59 @@
             return { data: parseLeaders(f.data.stats), stale: f.stale, fetchedAt: f.fetchedAt };
         },
 
+        // Équipes d'une compétition (liste compacte mise en cache une semaine)
         teams: async function (league, force) {
-            var f = await get("/apis/site/v2/sports/soccer/" + league + "/teams", 7 * 86400, force);
-            var out = [];
-            (f.data.sports || []).forEach(function (s) {
-                (s.leagues || []).forEach(function (lg) {
-                    (lg.teams || []).forEach(function (x) { if (x.team) out.push(parseTeam(x.team)); });
+            var base = "/apis/site/v2/sports/soccer/" + league + "/teams";
+            var f;
+            try { f = await get(base + "?limit=500", 7 * 86400, force, parseTeamsPayload); }
+            catch (e) { f = await get(base + "?v=2", 7 * 86400, force, parseTeamsPayload); }
+            return f.data;
+        },
+
+        // Plan B : les équipes d'une compétition d'après son classement
+        teamsFromStandings: async function (league, force) {
+            var f = await FL.espn.standings(league, force);
+            var out = [], seen = {};
+            f.data.forEach(function (g) {
+                g.rows.forEach(function (r) {
+                    if (!r.teamId || seen[r.teamId]) return;
+                    seen[r.teamId] = true;
+                    out.push({ id: r.teamId, name: r.teamName || r.team, short: r.team, abbr: r.abbr || "", logo: r.logo, color: r.color || null, alt: r.alt || null });
                 });
             });
+            if (!out.length) throw new Error("Classement vide");
             return out;
         },
 
-        // Toutes les équipes (clubs + sélections), mises en cache une semaine
-        allTeams: async function () {
-            var cacheKey = "allteams-v1";
-            var c = cacheRead(cacheKey);
-            if (c && Date.now() - c.t < 7 * 86400 * 1000) return c.v;
-            var comps = FL.leagues.filter(function (l) { return l.slug !== "fifa.friendly" && l.slug !== "fra.coupe_de_france"; });
-            var res = await Promise.allSettled(comps.map(function (lg) {
-                return FL.espn.teams(lg.slug).then(function (teams) {
-                    return teams.map(function (t) { return { team: t, league: lg.slug, national: !!lg.national }; });
-                });
-            }));
-            var all = [];
-            res.forEach(function (r) { if (r.status === "fulfilled") all = all.concat(r.value); });
-            // une équipe = sa ligue nationale en priorité (pas la coupe d'Europe)
-            all.sort(function (a, b) {
-                var pa = /^(uefa|fifa)\./.test(a.league) ? 1 : 0, pb = /^(uefa|fifa)\./.test(b.league) ? 1 : 0;
-                return pa - pb;
+        // Fiche d'une équipe (couleurs, logo)
+        team: async function (league, teamId, force) {
+            var f = await get("/apis/site/v2/sports/soccer/" + league + "/teams/" + teamId, 30 * 86400, force, function (raw) {
+                var t = raw && (raw.team || raw);
+                if (!t || !t.id) throw new Error("Équipe introuvable");
+                return parseTeam(t);
             });
-            var seen = {};
-            all = all.filter(function (h) {
-                var k = h.team.id + (h.national ? "n" : "c");
-                if (seen[k]) return false;
-                seen[k] = true;
-                return true;
-            });
-            if (all.length > 50) cacheWrite(cacheKey, all);
-            return all;
+            return f.data;
+        },
+
+        news: async function (league, force) {
+            var f = await get("/apis/site/v2/sports/soccer/" + league + "/news?limit=30", 1200, force, parseNews);
+            return { data: f.data, stale: f.stale, fetchedAt: f.fetchedAt };
+        },
+
+        // Tous les matchs d'un jour dans les compétitions de l'utilisateur
+        dayMatches: async function (dayMs, force) {
+            var club = FL.prefs.club();
+            var set = FL.prefs.competitions().concat(
+                FL.prefs.followed().filter(function (t) { return !t.national; }).map(function (t) { return t.league; })
+            );
+            set.push(club.league);
+            var leagues = set.filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+            var res = await Promise.allSettled(leagues.map(function (lg) { return FL.espn.scoreboard(lg, dayMs, force); }));
+            if (res.every(function (r) { return r.status === "rejected"; })) throw new Error("offline");
+            var stale = res.some(function (r) { return r.status === "rejected" || r.value.stale; });
+            var list = [];
+            res.forEach(function (r) { if (r.status === "fulfilled") list = list.concat(r.value.data); });
+            return { matches: FL.uniqueMatches(list), stale: stale };
         },
 
         roster: async function (league, teamId, force) {

@@ -4,7 +4,8 @@
 
     var DEFAULT_CLUB = {
         id: "176", name: "Marseille", league: "fra.1", national: false,
-        logo: "https://a.espncdn.com/i/teamlogos/soccer/500/176.png"
+        logo: "https://a.espncdn.com/i/teamlogos/soccer/500/176.png",
+        color: "2faee0", alt: "ffffff"
     };
     var DEFAULT_COMPS = [
         "fra.1", "uefa.champions", "uefa.europa", "uefa.europa.conf", "fra.2",
@@ -23,6 +24,27 @@
             var p = read();
             return p.club || DEFAULT_CLUB;
         },
+        // Vrai si l'utilisateur a réellement choisi un club de cœur
+        hasClub: function () {
+            return !!read().club;
+        },
+        // Complète les couleurs d'un club déjà enregistré (anciennes préférences)
+        updateClub: function (id, patch) {
+            var p = read();
+            if (p.club && p.club.id === id) p.club = Object.assign({}, p.club, patch);
+            if (p.followed) p.followed = p.followed.map(function (t) { return t.id === id ? Object.assign({}, t, patch) : t; });
+            write(p);
+        },
+        theme: function () {
+            var p = read();
+            return { off: !!p.themeOff, color: p.themeColor || "" };
+        },
+        setTheme: function (t) {
+            var p = read();
+            p.themeOff = !!t.off;
+            if (t.color) p.themeColor = t.color; else delete p.themeColor;
+            write(p);
+        },
         setClub: function (team) {
             var p = read();
             p.club = pick(team);
@@ -31,7 +53,7 @@
         },
         followed: function () {
             var p = read();
-            return p.followed || [Object.assign({ level: 0 }, DEFAULT_CLUB)];
+            return p.followed || [];
         },
         isFollowed: function (id) {
             return this.followed().some(function (t) { return t.id === id; });
@@ -73,6 +95,9 @@
     };
 
     function pick(t) {
-        return { id: String(t.id), name: t.name, league: t.league, national: !!t.national, logo: t.logo || null };
+        return {
+            id: String(t.id), name: t.name, league: t.league, national: !!t.national, logo: t.logo || null,
+            color: t.color || null, alt: t.alt || null
+        };
     }
 })();

@@ -2,57 +2,25 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2faee0">
+    <meta name="color-scheme" content="light dark">
     <title>FootLivz</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=2">
+    <script src="js/theme.js?v=2"></script>
 </head>
-<body>
-    <header>
-        <h1>FootLivz</h1>
-        <nav>
-            <ul>
-                <li><a href="#home" class="active">Accueil</a></li>
-                <li><a href="#features">Fonctionnalités</a></li>
-                <li><a href="#contact">Contact</a></li>
-                <li><a href="screens/agenda.html">Agenda</a></li>
-                <li><a href="screens/explorer.html">Explorer</a></li>
-                <li><a href="screens/league.html">Ligues</a></li>
-                <li><a href="screens/live.html">Live</a></li>
-                <li><a href="screens/match.html">Matchs</a></li>
-                <li><a href="screens/mercato.html">Mercato</a></li>
-                <li><a href="screens/settings.html">Paramètres</a></li>
-                <li><a href="screens/team.html">Équipes</a></li>
-            </ul>
-        </nav>
-    </header>
-    <main>
-        <section id="home">
-            <h2>Bienvenue sur FootLivz</h2>
-            <p>Découvrez les meilleures fonctionnalités de notre application.</p>
-        </section>
-        <section id="features">
-            <h2>Nos Fonctionnalités</h2>
-            <ul>
-                <li>Gestion des utilisateurs</li>
-                <li>Notifications</li>
-                <li>Agenda des matchs</li>
-                <li>Exploration des données</li>
-                <li>Informations sur les ligues</li>
-                <li>Suivi en direct des matchs</li>
-                <li>Détails des matchs</li>
-                <li>Marché des joueurs</li>
-                <li>Paramètres de l'application</li>
-                <li>Informations sur les équipes</li>
-            </ul>
-        </section>
-        <section id="contact">
-            <h2>Contact</h2>
-            <p>Pour toute question, contactez l'équipe FootLivz.</p>
-        </section>
+<body data-page="home" data-root="" data-title="FootLivz">
+    <main class="page">
+        <div id="app"></div>
     </main>
-    <footer>
-        <p>&copy; 2023 FootLivz. Tous droits réservés.</p>
-    </footer>
-    <script src="js/main.js"></script>
+    <noscript><p style="padding:1rem">FootLivz a besoin de JavaScript pour fonctionner.</p></noscript>
+    <script src="js/data/leagues.js?v=2"></script>
+    <script src="js/data/store.js?v=2"></script>
+    <script src="js/data/espn.js?v=2"></script>
+    <script src="js/ui.js?v=2"></script>
+    <script src="js/data/teams.js?v=2"></script>
+    <script src="js/data/news.js?v=2"></script>
+    <script src="js/layout.js?v=2"></script>
+    <script src="js/screens/home.js?v=2"></script>
 </body>
 </html>

@@ -38,11 +38,11 @@
     };
 
     FL.matchUrl = function (m) {
-        return "match.html?league=" + encodeURIComponent(m.league) + "&id=" + encodeURIComponent(m.id);
+        return (FL.base || "") + "match.html?league=" + encodeURIComponent(m.league) + "&id=" + encodeURIComponent(m.id);
     };
 
     FL.teamUrl = function (league, id) {
-        return "team.html?league=" + encodeURIComponent(league) + "&id=" + encodeURIComponent(id);
+        return (FL.base || "") + "team.html?league=" + encodeURIComponent(league) + "&id=" + encodeURIComponent(id);
     };
 
     FL.stateLabel = function (m) {
@@ -63,6 +63,90 @@
             '<span class="match-score">' + score + "</span>" +
             '<span class="match-team away">' + FL.logo(m.away.logo) + FL.esc(m.away.short) + "</span>" +
             league + "</a>";
+    };
+
+    // Date relative : « il y a 3 h »
+    FL.ago = function (ms) {
+        if (!ms) return "";
+        var s = Math.max(0, (Date.now() - ms) / 1000);
+        if (s < 90) return "à l'instant";
+        if (s < 3600) return "il y a " + Math.round(s / 60) + " min";
+        if (s < 86400) return "il y a " + Math.round(s / 3600) + " h";
+        if (s < 7 * 86400) { var d = Math.round(s / 86400); return "il y a " + d + (d > 1 ? " jours" : " jour"); }
+        return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(ms);
+    };
+
+    // « Aujourd'hui 21h00 », « Demain 20h45 », « Samedi 14 mars 17h00 »
+    FL.fmtWhen = function (ms) {
+        var diff = Math.round((FL.startOfDay(ms) - FL.startOfDay(Date.now())) / 86400000);
+        var day = diff === 0 ? "Aujourd'hui" : diff === 1 ? "Demain" : FL.fmtDay(ms);
+        return day + " · " + FL.fmtTime(ms);
+    };
+
+    FL.countdown = function (ms) {
+        var s = Math.floor((ms - Date.now()) / 1000);
+        if (s <= 0) return "";
+        var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+        if (d > 0) return "dans " + d + " j " + h + " h";
+        if (h > 0) return "dans " + h + " h " + (m < 10 ? "0" : "") + m;
+        return "dans " + m + " min";
+    };
+
+    // Résultat d'une équipe sur un match terminé : V / N / D
+    FL.outcome = function (m, teamId) {
+        var h = parseInt(m.homeScore, 10), a = parseInt(m.awayScore, 10);
+        if (isNaN(h) || isNaN(a)) return null;
+        var mine = m.home.id === teamId ? h : a, theirs = m.home.id === teamId ? a : h;
+        return mine > theirs ? "V" : mine < theirs ? "D" : "N";
+    };
+
+    FL.skeleton = function (rows) {
+        var out = "";
+        for (var i = 0; i < (rows || 3); i++) out += '<div class="skeleton"></div>';
+        return out;
+    };
+
+    // Sélecteur de club réutilisé par l'accueil et les réglages
+    FL.clubPicker = function (box, onPick) {
+        var SUGGEST = ["OM", "PSG", "OL", "Monaco", "Lille", "Lens", "Real Madrid", "Barça", "Liverpool", "Bayern"];
+        box.innerHTML = '<input type="search" class="search" placeholder="Rechercher ton club (ex. OM, PSG, Real Madrid…)" autocomplete="off">' +
+            '<div class="chips picker-suggest">' + SUGGEST.map(function (x) { return FL.chip(x, x, false, "q"); }).join("") + "</div>" +
+            '<div class="picker-status"></div><div class="picker-results"></div>';
+        var input = box.querySelector("input"), res = box.querySelector(".picker-results"), status = box.querySelector(".picker-status");
+        var hits = [];
+
+        function render() {
+            var st = FL.teamIndex.state;
+            var q = input.value;
+            status.innerHTML = st.loading && st.total > 1
+                ? '<p class="muted small">Chargement des équipes… ' + st.done + "/" + st.total + "</p>"
+                : (!st.loading && !FL.teamIndex.all().length
+                    ? FL.notice("Liste des équipes indisponible pour le moment.", "error") + '<p><button type="button" class="btn small" data-retry>Réessayer</button></p>'
+                    : "");
+            if (FL.norm(q).length < 2) { res.innerHTML = ""; hits = []; return; }
+            hits = FL.teamIndex.search(q).slice(0, 8);
+            res.innerHTML = hits.length
+                ? '<div class="card">' + hits.map(function (h, i) {
+                    return '<div class="list-row"><span class="list-main">' + FL.logo(h.team.logo) + "<span>" + FL.esc(h.team.name) +
+                        "</span><small>" + FL.esc(FL.leagueName(h.league)) + '</small></span><button type="button" class="btn small primary" data-pick="' + i + '">Choisir</button></div>';
+                }).join("") + "</div>"
+                : (st.loading ? "" : FL.notice("Aucune équipe trouvée."));
+        }
+
+        input.addEventListener("input", render);
+        box.addEventListener("click", function (e) {
+            var chip = e.target.closest("button.chip");
+            if (chip) { input.value = chip.getAttribute("data-q"); render(); input.focus(); return; }
+            var retry = e.target.closest("[data-retry]");
+            if (retry) { FL.teamIndex.retry(); return; }
+            var b = e.target.closest("button[data-pick]");
+            if (!b) return;
+            var h = hits[+b.getAttribute("data-pick")];
+            if (h) onPick({ id: h.team.id, name: h.team.name, league: h.league, national: h.national, logo: h.team.logo, color: h.team.color, alt: h.team.alt });
+        });
+        FL.teamIndex.onChange(render);
+        FL.teamIndex.load();
+        render();
     };
 
     FL.notice = function (text, kind) {

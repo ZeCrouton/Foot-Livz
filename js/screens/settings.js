@@ -1,16 +1,23 @@
-(async function () {
+(function () {
     var FL = window.FL, app = document.getElementById("app");
 
     function render() {
         var club = FL.prefs.club();
         var followed = FL.prefs.followed();
         var comps = FL.prefs.competitions();
+        var theme = FL.prefs.theme();
+        var swatch = FL.theme.compute(theme.color || club.color, theme.color ? null : club.alt);
 
         app.innerHTML =
-            '<h3 class="day-title">Club de cœur</h3><div class="card">' +
-            '<div class="list-row"><span class="list-main">' + FL.logo(club.logo) + "<span>" + FL.esc(club.name) + "</span></span></div>" +
-            '<label class="field">Changer de club<input type="search" id="club-q" class="search" placeholder="Rechercher une équipe…" autocomplete="off"></label>' +
-            '<div id="club-results"></div></div>' +
+            '<h3 class="day-title">Club de cœur</h3><div class="card pad">' +
+            '<div class="list-row"><span class="list-main">' + FL.logo(club.logo) + "<strong>" + FL.esc(FL.prefs.hasClub() ? club.name : "Aucun club choisi") + "</strong></span></div>" +
+            '<p class="muted small">Change de club pour adapter les couleurs, l\'agenda et le mercato.</p><div id="picker"></div></div>' +
+
+            '<h3 class="day-title">Couleurs</h3><div class="card pad">' +
+            '<label class="switch"><input type="checkbox" id="theme-on"' + (theme.off ? "" : " checked") + "> Utiliser les couleurs de mon club</label>" +
+            '<div class="color-row"><span class="swatch" style="background:#' + swatch.primary + '"></span><span class="swatch" style="background:#' + swatch.accent + '"></span>' +
+            '<label class="small">Couleur personnalisée <input type="color" id="theme-color" value="#' + swatch.primary + '"></label>' +
+            (theme.color ? '<button type="button" class="btn small" id="theme-reset">Couleur du club</button>' : "") + "</div></div>" +
 
             '<h3 class="day-title">Équipes suivies</h3><div class="card">' +
             (followed.length ? followed.map(function (t) {
@@ -29,27 +36,24 @@
     }
 
     function bind() {
-        var q = document.getElementById("club-q");
-        q.addEventListener("input", async function () {
-            var n = FL.norm(q.value);
-            var box = document.getElementById("club-results");
-            if (n.length < 2) { box.innerHTML = ""; return; }
-            box.innerHTML = '<p class="loading">Recherche…</p>';
-            var all;
-            try { all = await FL.espn.allTeams(); }
-            catch (e) { box.innerHTML = FL.notice("Liste des équipes indisponible.", "error"); return; }
-            var hits = all.filter(function (h) { return FL.norm(h.team.name).indexOf(n) >= 0 || FL.norm(h.team.short).indexOf(n) >= 0; }).slice(0, 15);
-            box.innerHTML = hits.map(function (h, i) {
-                return '<div class="list-row"><span class="list-main">' + FL.logo(h.team.logo) + "<span>" + FL.esc(h.team.name) +
-                    "</span><small>" + FL.esc(FL.leagueName(h.league)) + '</small></span><button type="button" class="btn small" data-club="' + i + '">Choisir</button></div>';
-            }).join("") || FL.notice("Aucune équipe trouvée.");
-            box.querySelectorAll("button[data-club]").forEach(function (b) {
-                b.addEventListener("click", function () {
-                    var h = hits[+b.getAttribute("data-club")];
-                    FL.prefs.setClub({ id: h.team.id, name: h.team.name, league: h.league, national: h.national, logo: h.team.logo });
-                    render();
-                });
-            });
+        FL.clubPicker(document.getElementById("picker"), function (team) {
+            FL.prefs.setClub(team);
+            FL.prefs.setTheme({ off: FL.prefs.theme().off, color: "" });   // nouveau club = ses couleurs
+            window.location.reload();
+        });
+
+        document.getElementById("theme-on").addEventListener("change", function () {
+            FL.prefs.setTheme({ off: !this.checked, color: FL.prefs.theme().color });
+            FL.theme.applyFromPrefs(); render();
+        });
+        document.getElementById("theme-color").addEventListener("change", function () {
+            FL.prefs.setTheme({ off: false, color: this.value });
+            FL.theme.applyFromPrefs(); render();
+        });
+        var r = document.getElementById("theme-reset");
+        if (r) r.addEventListener("click", function () {
+            FL.prefs.setTheme({ off: FL.prefs.theme().off, color: "" });
+            FL.theme.applyFromPrefs(); render();
         });
 
         app.querySelectorAll("button[data-unfollow]").forEach(function (b) {
@@ -64,7 +68,7 @@
         });
 
         document.getElementById("reset").addEventListener("click", function () {
-            if (confirm("Remettre les réglages par défaut ?")) { FL.prefs.reset(); render(); }
+            if (confirm("Remettre les réglages par défaut ?")) { FL.prefs.reset(); window.location.reload(); }
         });
     }
 
