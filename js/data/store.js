@@ -8,7 +8,7 @@
         color: "2faee0", alt: "ffffff"
     };
     var DEFAULT_COMPS = [
-        "fra.1", "uefa.champions", "uefa.europa", "uefa.europa.conf", "fra.2",
+        "fra.1", "uefa.champions", "uefa.europa", "uefa.europa.conf", "fra.2", "fra.3",
         "fra.coupe_de_france", "eng.1", "esp.1", "ita.1", "ger.1", "fifa.worldq.uefa", "uefa.nations"
     ];
 

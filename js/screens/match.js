@@ -9,7 +9,7 @@
 
     var f;
     try { f = await FL.espn.summary(params.league, params.id, false); }
-    catch (e) { app.innerHTML = FL.notice("Match indisponible. Vérifiez votre connexion.", "error"); return; }
+    catch (e) { app.innerHTML = FL.notice(e && e.friendly ? e.message : "Match indisponible. Vérifiez votre connexion.", "error"); return; }
 
     var d = f.data, m = d.match;
     var nameOf = {};

@@ -1,10 +1,11 @@
 (function () {
     var FL = window.FL = window.FL || {};
 
-    // Compétitions ESPN (la Ligue 3 / LFP n'est pas portée sur le web)
+    // Compétitions ESPN, plus la Ligue 3 (données LFP, voir lfp.js)
     FL.leagues = [
         { slug: "fra.1", name: "Ligue 1", group: "France" },
         { slug: "fra.2", name: "Ligue 2", group: "France" },
+        { slug: "fra.3", name: "Ligue 3", group: "France" },
         { slug: "fra.coupe_de_france", name: "Coupe de France", group: "France" },
         { slug: "fra.w.1", name: "Première Ligue (F)", group: "France" },
         { slug: "uefa.champions", name: "Ligue des champions", group: "Coupes d'Europe" },
@@ -49,6 +50,7 @@
     // Compétitions où chercher les matchs à venir d'une équipe
     FL.searchLeaguesFor = function (t) {
         if (t.national) return FL.nationalComps.slice();
+        if (t.league === "fra.3") return ["fra.3"];   // équipes LFP : pas d'identifiant ESPN pour les coupes
         var l = [t.league].concat(FL.clubCups);
         if (t.league.indexOf("fra.") === 0) l.push("fra.coupe_de_france");
         return l.filter(function (v, i, a) { return a.indexOf(v) === i; });

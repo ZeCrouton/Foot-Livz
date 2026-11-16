@@ -420,12 +420,31 @@
 
     function sortByDate(list) { return list.sort(function (a, b) { return a.date - b.date; }); }
 
+    // Ligue 3 : la LFP n'est pas sur ESPN, ses données viennent de js/data/lfp.js
+    function l3(league) { return league === "fra.3" && FL.lfp ? FL.lfp : null; }
+    function none() { return { data: [], stale: false, fetchedAt: Date.now() }; }
+
     FL.espn = {
+        // Cache générique (même stockage) pour les autres sources : Ligue 3, secours FFF…
+        cached: async function (key, maxAgeSec, force, fetcher) {
+            var c = cacheRead(key);
+            if (!force && c && (Date.now() - c.t) / 1000 <= maxAgeSec) return { data: c.v, stale: false, fetchedAt: c.t };
+            try {
+                var v = await fetcher();
+                cacheWrite(key, v);
+                return { data: v, stale: false, fetchedAt: Date.now() };
+            } catch (e) {
+                if (c) return { data: c.v, stale: true, fetchedAt: c.t };
+                throw e;
+            }
+        },
+
         dayKey: dayKey,
         posGroup: posGroup,
         posLabel: function (g) { return POS_LABELS[g] || POS_LABELS[3]; },
 
         scoreboard: async function (league, dayMs, force) {
+            if (l3(league)) return l3(league).scoreboard(dayMs, force);
             var key = dayKey(dayMs), today = dayKey(Date.now());
             var maxAge = key === today ? 25 : (key < today ? 6 * 3600 : 1800);
             var f = await get("/apis/site/v2/sports/soccer/" + league + "/scoreboard?dates=" + key, maxAge, force);
@@ -435,6 +454,7 @@
         },
 
         summary: async function (league, id, force) {
+            if (l3(league)) return l3(league).summary(id, force);
             var f = await get("/apis/site/v2/sports/soccer/" + league + "/summary?event=" + encodeURIComponent(id), 20, force);
             var d = parseSummary(f.data, league, id);
             if (!d) throw new Error("Match introuvable");
@@ -442,17 +462,20 @@
         },
 
         standings: async function (league, force) {
+            if (l3(league)) return l3(league).standings(force);
             var f = await get("/apis/v2/sports/soccer/" + league + "/standings", 600, force);
             return { data: parseStandings(f.data), stale: f.stale, fetchedAt: f.fetchedAt };
         },
 
         leaders: async function (league, force) {
+            if (l3(league)) return none();   // la LFP ne fournit pas de classement des buteurs
             var f = await get("/apis/site/v2/sports/soccer/" + league + "/statistics", 3 * 3600, force);
             return { data: parseLeaders(f.data.stats), stale: f.stale, fetchedAt: f.fetchedAt };
         },
 
         // Équipes d'une compétition (liste compacte mise en cache une semaine)
         teams: async function (league, force) {
+            if (l3(league)) return l3(league).teams(force);
             var base = "/apis/site/v2/sports/soccer/" + league + "/teams";
             var f;
             try { f = await get(base + "?limit=500", 7 * 86400, force, parseTeamsPayload); }
@@ -477,6 +500,7 @@
 
         // Fiche d'une équipe (couleurs, logo)
         team: async function (league, teamId, force) {
+            if (l3(league)) return l3(league).team(teamId, force);
             var f = await get("/apis/site/v2/sports/soccer/" + league + "/teams/" + teamId, 30 * 86400, force, function (raw) {
                 var t = raw && (raw.team || raw);
                 if (!t || !t.id) throw new Error("Équipe introuvable");
@@ -486,6 +510,7 @@
         },
 
         news: async function (league, force) {
+            if (l3(league)) return none();
             var f = await get("/apis/site/v2/sports/soccer/" + league + "/news?limit=30", 1200, force, parseNews);
             return { data: f.data, stale: f.stale, fetchedAt: f.fetchedAt };
         },
@@ -507,11 +532,13 @@
         },
 
         roster: async function (league, teamId, force) {
+            if (l3(league)) return l3(league).roster(teamId, force);
             var f = await get("/apis/site/v2/sports/soccer/" + league + "/teams/" + teamId + "/roster", 12 * 3600, force);
             return parseRoster(f.data.athletes || []);
         },
 
         schedule: async function (league, teamId, fixture, force) {
+            if (l3(league)) return l3(league).schedule(teamId, fixture, force);
             var q = fixture ? "?fixture=true" : "";
             var f = await get("/apis/site/v2/sports/soccer/" + league + "/teams/" + teamId + "/schedule" + q,
                 fixture ? 3 * 3600 : 1800, force);

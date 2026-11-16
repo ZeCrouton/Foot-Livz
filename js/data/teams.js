@@ -2,7 +2,7 @@
    Chargement progressif : on peut chercher dès que les premières compétitions sont arrivées. */
 (function () {
     var FL = window.FL = window.FL || {};
-    var KEY = "fl:teams-v2";
+    var KEY = "fl:teams-v3";
     var FULL_TTL = 7 * 86400 * 1000, PARTIAL_TTL = 30 * 60 * 1000;
     var CONCURRENCY = 5;
 

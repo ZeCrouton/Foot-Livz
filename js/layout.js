@@ -35,7 +35,7 @@
 
         var footer = document.createElement("footer");
         footer.className = "site-footer";
-        footer.innerHTML = "<p>FootLivz · Scores et données : ESPN · Actualités : Google Actualités</p>";
+        footer.innerHTML = "<p>FootLivz · Scores et données : ESPN · Ligue 3 : LFP, FFF · Actualités : Google Actualités</p>";
         body.appendChild(footer);
 
         var title = body.getAttribute("data-title");
