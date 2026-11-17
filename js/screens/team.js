@@ -14,12 +14,28 @@
     app.innerHTML = '<p class="loading">Chargement de l\'équipe…</p>';
     var league = params.league, id = params.id;
 
-    var teamRef = null;
-    try {
-        teamRef = (await FL.espn.teams(league, false)).find(function (t) { return t.id === id; }) || null;
-    } catch (e) { /* on tentera avec les infos suivies */ }
-    var followedRef = FL.prefs.followed().find(function (t) { return t.id === id; });
-    var team = teamRef || (followedRef ? { id: id, name: followedRef.name, short: followedRef.name, logo: followedRef.logo, color: followedRef.color, alt: followedRef.alt } : null);
+    // Retrouve la fiche de l'équipe en essayant plusieurs sources, de la plus fiable à la plus lente.
+    // (Avant : une seule source, /teams ; si elle échouait — fréquent en 4G/5G — la page affichait « introuvable ».)
+    function pickById(list) {
+        return (list || []).find(function (t) { return String(t.id) === String(id); }) || null;
+    }
+    async function attempt(fn) { try { return await fn(); } catch (e) { return null; } }
+    function fromIndexCache() {
+        try {
+            var c = JSON.parse(localStorage.getItem("fl:teams-v3"));
+            var r = c && c.v && c.v.find(function (x) { return String(x[0]) === String(id) && x[7] === league; })
+                || (c && c.v && c.v.find(function (x) { return String(x[0]) === String(id); }));
+            return r ? { id: String(r[0]), name: r[1], short: r[2], abbr: r[3], logo: r[4], color: r[5], alt: r[6] } : null;
+        } catch (e) { return null; }
+    }
+    var followedRef = FL.prefs.followed().find(function (t) { return String(t.id) === String(id); });
+    var teamRef =
+        pickById(await attempt(function () { return FL.espn.teams(league, false); })) ||
+        pickById(await attempt(function () { return FL.espn.teamsFromStandings(league, false); })) ||
+        await attempt(function () { return FL.espn.team(league, id, false); }) ||
+        fromIndexCache() ||
+        (followedRef ? { id: id, name: followedRef.name, short: followedRef.name, logo: followedRef.logo, color: followedRef.color, alt: followedRef.alt } : null);
+    var team = teamRef;
     if (!team) {
         app.innerHTML = FL.notice("Équipe introuvable dans cette compétition.", "error");
         return;
