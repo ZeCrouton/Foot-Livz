@@ -1,6 +1,30 @@
 /* En-tête, navigation et pied de page communs à toutes les pages. */
 (function () {
     var FL = window.FL = window.FL || {};
+
+    // --- PWA : enregistrement du Service Worker ---
+    if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+            var swBase = (document.body.getAttribute("data-root") || "") + "../";
+            // depuis index.html : sw.js à la racine ; depuis screens/ : ../sw.js
+            var swPath = (document.body.getAttribute("data-root") ? "../" : "") + "sw.js";
+            navigator.serviceWorker.register(swPath).catch(function () { /* silencieux */ });
+        });
+    }
+
+    // --- PWA : capture du prompt d'installation ---
+    window._flInstallPrompt = null;
+    window.addEventListener("beforeinstallprompt", function (e) {
+        e.preventDefault();
+        window._flInstallPrompt = e;
+        var btn = document.getElementById("fl-install-btn");
+        if (btn) btn.hidden = false;
+    });
+    window.addEventListener("appinstalled", function () {
+        window._flInstallPrompt = null;
+        var btn = document.getElementById("fl-install-btn");
+        if (btn) btn.hidden = true;
+    });
     var body = document.body;
     var page = body.getAttribute("data-page") || "home";
     var root = body.getAttribute("data-root") || "";          // "" depuis index.html, "../" depuis screens/
@@ -26,8 +50,12 @@
         header.innerHTML =
             '<div class="site-bar">' +
             '<a class="brand" href="' + home + '"><span class="brand-ball" aria-hidden="true">⚽</span>FootLivz</a>' +
+            '<div class="site-bar-right">' +
+            '<button id="fl-install-btn" class="install-btn" hidden title="Installer l\'application" onclick="(function(){var e=window._flInstallPrompt;if(!e)return;e.prompt();e.userChoice.then(function(){window._flInstallPrompt=null;document.getElementById(\'fl-install-btn\').hidden=true;});})()">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13M7 11l5 5 5-5"/><rect x="3" y="18" width="18" height="3" rx="1"/></svg>' +
+            '<span>Installer</span></button>' +
             '<a class="club-pill" href="' + FL.base + 'settings.html" title="Changer de club">' +
-            (hasClub ? FL.logo(club.logo) + "<span>" + FL.esc(club.name) + "</span>" : "<span>Choisir mon club</span>") + "</a></div>" +
+            (hasClub ? FL.logo(club.logo) + "<span>" + FL.esc(club.name) + "</span>" : "<span>Choisir mon club</span>") + "</a></div></div>" +
             '<nav class="tabs" aria-label="Navigation principale">' + TABS.map(function (t) {
                 return '<a href="' + t.href + '"' + (t.id === page ? ' class="active" aria-current="page"' : "") + ">" + t.label + "</a>";
             }).join("") + "</nav>";
