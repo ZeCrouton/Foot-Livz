@@ -37,7 +37,7 @@
             var days = Array.from({length: 7}, function (_, i) { return now + i * 86400000; });
             var res  = await Promise.allSettled(days.map(function (d) { return FL.espn.dayMatches(d, force); }));
             var flat = [];
-            res.forEach(function (r) { if (r.status === "fulfilled") flat = flat.concat(r.value); });
+            res.forEach(function (r) { if (r.status === "fulfilled") flat = flat.concat(r.value.matches); });
             allMatches = FL.uniqueMatches(flat)
                 .filter(function (m) { return m.date > now - 2 * 3600 * 1000 && m.state !== "POST"; })
                 .sort(function (a, b) { return a.date - b.date; });
