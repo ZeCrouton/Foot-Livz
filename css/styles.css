@@ -114,6 +114,12 @@ img { max-width: 100%; }
 .day-title { margin: 1.25rem 0 .5rem; font-size: 1rem; color: var(--muted); font-weight: 700; text-transform: none; }
 
 .chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+/* Agenda : séparateur visuel entre les chips de mode et les chips d'équipes */
+.agenda-chips { align-items: center; }
+.chips-sep { width: 1px; height: 1.4rem; background: var(--border); margin: 0 .25rem; align-self: center; }
+/* Chips de mode (Mes équipes / Tous les matchs) : légèrement mis en avant */
+.mode-chip { font-weight: 600; }
+.mode-chip.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .chip, .btn {
     border: 1px solid var(--border); background: var(--surface); color: var(--text);
     padding: .4rem .85rem; border-radius: 999px; cursor: pointer; font: inherit; font-size: .92rem;
