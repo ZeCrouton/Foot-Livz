@@ -5,7 +5,9 @@
     var TTL = 15 * 60 * 1000;
     var PREFIX = "fl:n:";
 
+    var WORKER = "https://footlivz.nvz-photos.workers.dev";
     var PROXIES = [
+        { name: "worker", build: function (u) { return WORKER + "/rss?q=" + encodeURIComponent(new URL(u).searchParams.get("q") || ""); } },
         { name: "rss2json", json: true, build: function (u) { return "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(u); } },
         { name: "allorigins", build: function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); } },
         { name: "corsproxy", build: function (u) { return "https://corsproxy.io/?url=" + encodeURIComponent(u); } },
