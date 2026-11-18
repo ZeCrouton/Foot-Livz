@@ -470,7 +470,10 @@
     // ------------------------------------------------------------ secours : base officielle de la FFF
 
     var fffNo = null;
-    function members(j) { return Array.isArray(j) ? j : ((j && j["hydra:member"]) || []); }
+    function members(j) {
+        if (j && typeof j === "object" && !Array.isArray(j) && j.error) throw new Error("FFF indisponible (" + j.error + ")");
+        return Array.isArray(j) ? j : ((j && j["hydra:member"]) || []);
+    }
 
     // Numéro FFF de la Ligue 3 (452039 en 2026-2027), retrouvé chaque saison
     async function fffCompet() {

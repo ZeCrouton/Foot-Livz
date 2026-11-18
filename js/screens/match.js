@@ -56,6 +56,57 @@
             "</div>";
     }).join("") : "";
 
-    app.innerHTML = FL.staleBanner(f) + header + eventsHtml + statsHtml + lineupsHtml;
+    // Message contextuel selon l'état du match
+    var contextHtml = "";
+    if (m.state === "PRE") {
+        var nowMs = Date.now(), matchMs = m.date;
+        var diffH = (matchMs - nowMs) / 3600000;
+        if (diffH > 0 && diffH < 2) {
+            contextHtml = '<p class="muted" style="text-align:center;padding:8px 16px">Les compositions tomberont environ 1 h avant le coup d\'envoi.</p>';
+        } else if (diffH <= 0) {
+            contextHtml = '<p class="muted" style="text-align:center;padding:8px 16px">Les statistiques détaillées arrivent au coup d\'envoi.</p>';
+        }
+    }
+
+    // Articles de presse pour les matchs terminés (compte rendu)
+    var pressHtml = "";
+    if (m.state === "POST") {
+        var PRESS_PRE = ["chaine", "quelle heure", "streaming", "ou voir", "en direct", "direct video", "compo probable", "avant-match", "programme tv"];
+        function teamKey(t) {
+            var stop = new Set(["fc", "as", "ac", "sc", "rc", "us", "og", "ogc", "club", "de", "du", "des", "la", "le", "les", "olympique", "stade", "sporting", "athletic"]);
+            var w = FL.norm(t.short || t.name).split(/[\s\-]+/).filter(function (x) { return x.length >= 3 && !stop.has(x); });
+            return w[0] || FL.norm(t.name).split(/[\s\-]+/)[0] || FL.norm(t.name);
+        }
+        var kh = teamKey(m.home), ka = teamKey(m.away);
+        // date du match en yyyy-mm-dd
+        function ymd(ms) { var d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+        var after = ymd(m.date - 86400000), before2 = ymd(m.date + 4 * 86400000);
+        var pressQuery = kh + " " + ka + " after:" + after + " before:" + before2;
+        pressHtml = '<h3 class="day-title">Dans la presse</h3><div class="card" id="press-block"><p class="loading">Chargement…</p></div>';
+    }
+
+    app.innerHTML = FL.staleBanner(f) + header + contextHtml + eventsHtml + statsHtml + lineupsHtml + pressHtml;
+
+    // Chargement des articles APRÈS mise à jour du DOM
+    if (m.state === "POST") {
+        (async function () {
+            var block = document.getElementById("press-block");
+            if (!block) return;
+            try {
+                var f2 = await FL.news.load(pressQuery, false);
+                var items = f2.data.filter(function (a) {
+                    var t = FL.norm(a.title);
+                    if (PRESS_PRE.some(function (x) { return t.indexOf(x) >= 0; })) return false;
+                    return t.indexOf(kh) >= 0 && t.indexOf(ka) >= 0;
+                }).filter(function (a) { return !a.date || a.date >= m.date; }).slice(0, 6);
+                if (!items.length) { block.innerHTML = '<p class="muted">Aucun article trouvé.</p>'; return; }
+                block.innerHTML = items.map(function (a) {
+                    return '<div class="list-row"><a href="' + FL.esc(a.link) + '" target="_blank" rel="noopener">' + FL.esc(a.title) + '</a><small>' + FL.esc(a.source) + '</small></div>';
+                }).join("");
+            } catch (e) {
+                if (block) block.innerHTML = '<p class="muted">Articles indisponibles.</p>';
+            }
+        })();
+    }
     document.title = m.home.short + " - " + m.away.short + " - FootLivz";
 })();
