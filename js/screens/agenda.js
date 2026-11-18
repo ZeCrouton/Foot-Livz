@@ -26,16 +26,25 @@
     })();
 
     // Tous les matchs (7 jours)
-    var allMatches = [];
+    var allMatches  = [];
+    var allLoaded   = false;   // true une fois le chargement terminé (même si vide)
+    var allLoading  = false;   // évite les doubles requêtes
     async function loadAllMatches(force) {
-        var now  = Date.now();
-        var days = Array.from({length: 7}, function (_, i) { return now + i * 86400000; });
-        var res  = await Promise.allSettled(days.map(function (d) { return FL.espn.dayMatches(d, force); }));
-        var flat = [];
-        res.forEach(function (r) { if (r.status === "fulfilled") flat = flat.concat(r.value); });
-        allMatches = FL.uniqueMatches(flat)
-            .filter(function (m) { return m.date > now - 2 * 3600 * 1000 && m.state !== "POST"; })
-            .sort(function (a, b) { return a.date - b.date; });
+        if (allLoading) return;
+        allLoading = true;
+        try {
+            var now  = Date.now();
+            var days = Array.from({length: 7}, function (_, i) { return now + i * 86400000; });
+            var res  = await Promise.allSettled(days.map(function (d) { return FL.espn.dayMatches(d, force); }));
+            var flat = [];
+            res.forEach(function (r) { if (r.status === "fulfilled") flat = flat.concat(r.value); });
+            allMatches = FL.uniqueMatches(flat)
+                .filter(function (m) { return m.date > now - 2 * 3600 * 1000 && m.state !== "POST"; })
+                .sort(function (a, b) { return a.date - b.date; });
+        } finally {
+            allLoaded  = true;
+            allLoading = false;
+        }
     }
 
     // Chargement initial des équipes suivies
@@ -76,7 +85,7 @@
 
         // Corps
         var body;
-        if (mode === "all" && allMatches.length === 0) {
+        if (mode === "all" && !allLoaded) {
             body = '<p class="loading">Chargement de tous les matchs…</p>';
         } else if (!shown.length) {
             var msg = mode === "my"
@@ -108,7 +117,7 @@
             mode   = newMode;
             filter = "";
             render();
-            if (mode === "all" && allMatches.length === 0) {
+            if (mode === "all" && !allLoaded) {
                 loadAllMatches(false).then(render);
             }
             return;
