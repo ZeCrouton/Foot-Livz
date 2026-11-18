@@ -14,11 +14,34 @@
 
     // --- PWA : capture du prompt d'installation ---
     window._flInstallPrompt = null;
+
+    // Vérifie si déjà installé en PWA standalone
+    var isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+
+    function flInstallClick() {
+        if (window._flInstallPrompt) {
+            // Chrome a fourni le prompt natif → on l'utilise
+            window._flInstallPrompt.prompt();
+            window._flInstallPrompt.userChoice.then(function () {
+                window._flInstallPrompt = null;
+                var btn = document.getElementById("fl-install-btn");
+                if (btn) btn.hidden = true;
+            });
+        } else {
+            // Pas de prompt natif (iOS Safari, Firefox…) → guide manuel
+            var msg = /iphone|ipad|ipod/i.test(navigator.userAgent)
+                ? "Sur Safari iOS :\nAppuyez sur ⬆ Partager → « Sur l'écran d'accueil »"
+                : "Dans le menu de votre navigateur :\nchoisissez « Ajouter à l'écran d'accueil » ou « Installer »";
+            alert(msg);
+        }
+    }
+    window._flInstallClick = flInstallClick;
+
     window.addEventListener("beforeinstallprompt", function (e) {
         e.preventDefault();
         window._flInstallPrompt = e;
         var btn = document.getElementById("fl-install-btn");
-        if (btn) btn.hidden = false;
+        if (btn) { btn.hidden = false; btn.title = "Installer l'application"; }
     });
     window.addEventListener("appinstalled", function () {
         window._flInstallPrompt = null;
@@ -51,7 +74,7 @@
             '<div class="site-bar">' +
             '<a class="brand" href="' + home + '"><span class="brand-ball" aria-hidden="true">⚽</span>FootLivz</a>' +
             '<div class="site-bar-right">' +
-            '<button id="fl-install-btn" class="install-btn" hidden title="Installer l\'application" onclick="(function(){var e=window._flInstallPrompt;if(!e)return;e.prompt();e.userChoice.then(function(){window._flInstallPrompt=null;document.getElementById(\'fl-install-btn\').hidden=true;});})()">' +
+            '<button id="fl-install-btn" class="install-btn"' + (isStandalone ? ' hidden' : '') + ' title="Installer l\'application" onclick="window._flInstallClick()">' +
             '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13M7 11l5 5 5-5"/><rect x="3" y="18" width="18" height="3" rx="1"/></svg>' +
             '<span>Installer</span></button>' +
             '<a class="club-pill" href="' + FL.base + 'settings.html" title="Changer de club">' +
