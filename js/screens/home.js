@@ -158,8 +158,8 @@
     (async function () {
         var topics = FL.news.topics();
         try {
-            var f = await FL.news.load(topics[0].query, false);
-            if (f.data.length < 3) f = await FL.news.load("mercato football when:3d", false);
+            var f = await FL.news.loadTopic(topics[0], false);
+            if (f.data.length < 3) f = await FL.news.loadTopic(topics.find(function (t) { return t.id === "une"; }), false);
             fill("s-news", '<div class="card flush news-list">' + f.data.slice(0, 5).map(function (a) {
                 return '<a class="news-item" href="' + FL.esc(a.link) + '" target="_blank" rel="noopener noreferrer"><span class="news-title">' + FL.esc(a.title) +
                     '</span><span class="news-meta">' + FL.esc(a.source || "") + (a.source && a.date ? " · " : "") + FL.esc(FL.ago(a.date)) + "</span></a>";

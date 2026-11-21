@@ -27,10 +27,10 @@
         box.innerHTML = FL.skeleton(6);
         var f = null, fallback = false;
         try {
-            f = await FL.news.load(topic.query, force);
+            f = await FL.news.loadTopic(topic, force);
             // Peu de résultats pour un club : on complète avec les actus mercato générales
             if (topic.id.charAt(0) === "t" || topic.id === "club") {
-                if (f.data.length < 3) { f = await FL.news.load("mercato football when:3d", force); fallback = true; }
+                if (f.data.length < 3) { f = await FL.news.loadTopic(topics.find(function (t) { return t.id === "une"; }), force); fallback = true; }
             }
         } catch (e) { f = null; }
         if (my !== token) return;
@@ -53,7 +53,7 @@
         box.innerHTML = FL.staleBanner(f) +
             (fallback ? FL.notice("Pas d'actualité récente spécifique à « " + topic.label + " » : voici le mercato général.") : "") +
             list(f.data) +
-            '<p class="muted small">Sources : Google Actualités · mis à jour ' + FL.esc(FL.ago(f.fetchedAt)) +
+            '<p class="muted small">Sources : Google Actualités' + (f.fm ? " · Foot Mercato" : "") + ' · mis à jour ' + FL.esc(FL.ago(f.fetchedAt)) +
             ' · <button type="button" class="linklike" id="refresh">Actualiser</button></p>';
     }
 

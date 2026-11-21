@@ -1,5 +1,5 @@
-/* Actualités mercato : flux RSS Google Actualités (en français), lus via des relais CORS
-   car un navigateur ne peut pas lire directement un flux RSS d'un autre site. */
+/* Actualités mercato : flux RSS Google Actualités + flux RSS Foot Mercato (en français), lus via
+   des relais CORS car un navigateur ne peut pas lire directement un flux RSS d'un autre site. */
 (function () {
     var FL = window.FL = window.FL || {};
     var TTL = 15 * 60 * 1000;
@@ -74,6 +74,92 @@
         return Promise.any(PROXIES.map(function (p) { return viaProxy(p, feed); }));
     }
 
+
+    // ---------------------------------------------------------------- Foot Mercato
+    // Flux unique (toute l'actu de footmercato.net), filtré ensuite par thème grâce aux mots-clés <category>.
+    var FM_FEED = "https://www.footmercato.net/flux-rss";
+    var FM_TTL = 10 * 60 * 1000;
+    var FM_PROXIES = PROXIES.filter(function (p) { return p.name !== "worker"; });   // le Worker ne relaie que Google
+    var MERCATO_RE = /mercato|transfert|recrue|recrut|\bpret\b|prolong|officiel|signe|s'engage|contrat|depart|quitter|rejoindre|\boffre\b|piste|cible|interet|interesse|negoci|accord|clause|vente|achat|arrivee|libre|resili|bail/;
+
+    function fmItem(title, link, date, cats, desc) {
+        var tags = FL.norm((Array.isArray(cats) ? cats.join(", ") : cats || "") + " | " + String(desc || "").replace(/<[^>]*>/g, " ")).slice(0, 400);
+        return { title: String(title || "").trim(), source: "Foot Mercato", link: safeLink(String(link || "").trim()), date: parseDate(date), tags: tags };
+    }
+
+    async function fmViaProxy(p) {
+        var r = await timeout(p.build(FM_FEED), 9000);
+        if (!r.ok) throw new Error(p.name + " HTTP " + r.status);
+        var items;
+        if (p.json) {
+            var j = await r.json();
+            if (j.status !== "ok") throw new Error(p.name + " refus");
+            items = (j.items || []).map(function (x) { return fmItem(x.title, x.link, x.pubDate, x.categories, x.description); });
+        } else {
+            var doc = new DOMParser().parseFromString(await r.text(), "text/xml");
+            if (doc.querySelector("parsererror")) throw new Error("RSS illisible");
+            items = Array.prototype.map.call(doc.querySelectorAll("item"), function (it) {
+                function txt(tag) { var e = it.querySelector(tag); return e ? e.textContent : ""; }
+                var cats = Array.prototype.map.call(it.querySelectorAll("category"), function (c) { return c.textContent; });
+                return fmItem(txt("title"), txt("link"), txt("pubDate"), cats, txt("description"));
+            });
+        }
+        items = items.filter(function (x) { return x.title && x.link; });
+        if (!items.length) throw new Error(p.name + " vide");
+        return items;
+    }
+
+    async function fmLoad(force) {
+        var c = cacheGet("__fm");
+        if (!force && c && Date.now() - c.t < FM_TTL) return c.v;
+        try {
+            var items = await Promise.any(FM_PROXIES.map(fmViaProxy));
+            cacheSet("__fm", items);
+            return items;
+        } catch (e) {
+            if (c) return c.v;
+            throw e;
+        }
+    }
+
+    // Noms ESPN -> mots employés par Foot Mercato (clés sans accents)
+    var FM_KEYS = {
+        "marseille": ["marseille", "om"], "paris saint-germain": ["psg", "paris saint-germain", "paris sg"],
+        "lyon": ["lyon", "ol"], "monaco": ["monaco", "asm"], "lille": ["lille", "losc"], "nice": ["ogc nice", "nice"],
+        "lens": ["lens", "rcl"], "rennes": ["rennes", "stade rennais"], "saint-etienne": ["saint-etienne", "asse"],
+        "le havre": ["le havre", "hac"], "toulouse": ["toulouse", "tfc"], "strasbourg": ["strasbourg", "rcsa"],
+        "barcelona": ["barcelone", "barca"], "atletico madrid": ["atletico"], "bayern munich": ["bayern"],
+        "borussia dortmund": ["dortmund", "bvb"], "manchester united": ["manchester united", "man united"],
+        "manchester city": ["manchester city", "man city"], "tottenham hotspur": ["tottenham", "spurs"],
+        "juventus": ["juventus", "juve"], "internazionale": ["inter milan", "inter"], "inter milan": ["inter milan", "inter"],
+        "ac milan": ["ac milan", "milan ac"], "napoli": ["naples", "napoli"], "as roma": ["as roma", "roma"],
+        "bayer leverkusen": ["leverkusen"], "rb leipzig": ["leipzig"], "sevilla": ["seville"], "real betis": ["betis"],
+        "athletic club": ["athletic bilbao"], "lazio": ["lazio"], "fiorentina": ["fiorentina"]
+    };
+    var GENERIC = { fc: 1, club: 1, united: 1, city: 1, real: 1, sporting: 1, athletic: 1, olympique: 1, stade: 1, racing: 1, association: 1, sport: 1, sc: 1, ac: 1, as: 1, us: 1, de: 1, du: 1, la: 1, le: 1 };
+
+    function clubKeys(name) {
+        var n = FL.norm(name);
+        if (FM_KEYS[n]) return FM_KEYS[n];
+        var keys = [n];
+        n.split(/[^a-z0-9-]+/).forEach(function (w) { if (w.length >= 5 && !GENERIC[w]) keys.push(w); });
+        return keys;
+    }
+
+    function hasWord(text, key) {
+        var k = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp("(^|[^a-z0-9])" + k + "([^a-z0-9]|$)").test(text);
+    }
+
+    function fmFilter(items, fm) {
+        return items.filter(function (a) {
+            var title = FL.norm(a.title), all = title + " | " + (a.tags || "");
+            if (fm.keys && !fm.keys.some(function (k) { return hasWord(fm.titleOnly ? title : all, k); })) return false;
+            if (fm.re && !fm.re.test(all)) return false;
+            return true;
+        }).map(function (a) { return { title: a.title, source: a.source, link: a.link, date: a.date }; });
+    }
+
     function cacheGet(k) {
         try { return JSON.parse(localStorage.getItem(PREFIX + k)); } catch (e) { return null; }
     }
@@ -107,21 +193,36 @@
             var mercatoWords = '(mercato OR transfert OR recrue OR "prêt" OR prolongation OR "officialise")';
             list.push({
                 id: "club", label: club.name, logo: club.logo,
-                query: club.national ? club.name + " football sélection" : '"' + club.name + '" football ' + mercatoWords + " when:30d"
+                query: club.national ? club.name + " football sélection" : '"' + club.name + '" football ' + mercatoWords + " when:30d",
+                fm: { keys: clubKeys(club.name), re: club.national ? null : MERCATO_RE }
             });
             FL.prefs.followed().filter(function (t) { return t.id !== club.id && !t.national; }).slice(0, 4).forEach(function (t) {
-                list.push({ id: "t" + t.id, label: t.name, logo: t.logo, query: '"' + t.name + '" football ' + mercatoWords + " when:30d" });
+                list.push({ id: "t" + t.id, label: t.name, logo: t.logo, query: '"' + t.name + '" football ' + mercatoWords + " when:30d", fm: { keys: clubKeys(t.name), re: MERCATO_RE } });
             });
             list.push(
-                { id: "une", label: "À la une", query: "mercato football when:3d" },
-                { id: "officiel", label: "Officiel", query: "transfert officiel football officialise when:7d" },
-                { id: "l1", label: "Ligue 1", query: "mercato Ligue 1 when:14d" },
-                { id: "pl", label: "Premier League", query: "mercato Premier League when:14d" },
-                { id: "liga", label: "Liga", query: "mercato Liga Real Barça when:14d" },
-                { id: "seriea", label: "Serie A", query: "mercato Serie A when:14d" },
-                { id: "bundes", label: "Bundesliga", query: "mercato Bundesliga when:14d" }
+                { id: "une", label: "À la une", query: "mercato football when:3d", fm: { re: MERCATO_RE } },
+                { id: "officiel", label: "Officiel", query: "transfert officiel football officialise when:7d", fm: { re: /officiel|officialis|s'engage|signe/ } },
+                { id: "l1", label: "Ligue 1", query: "mercato Ligue 1 when:14d", fm: { keys: ["ligue 1"], re: MERCATO_RE } },
+                { id: "pl", label: "Premier League", query: "mercato Premier League when:14d", fm: { keys: ["premier league"], re: MERCATO_RE } },
+                { id: "liga", label: "Liga", query: "mercato Liga Real Barça when:14d", fm: { keys: ["liga", "laliga"], re: MERCATO_RE } },
+                { id: "seriea", label: "Serie A", query: "mercato Serie A when:14d", fm: { keys: ["serie a"], re: MERCATO_RE } },
+                { id: "bundes", label: "Bundesliga", query: "mercato Bundesliga when:14d", fm: { keys: ["bundesliga"], re: MERCATO_RE } }
             );
             return list;
+        },
+
+        // Thème complet : Google Actualités + Foot Mercato, fusionnés, dédoublonnés, triés par date
+        loadTopic: async function (topic, force) {
+            var res = await Promise.allSettled([this.load(topic.query, force), topic.fm ? fmLoad(force) : Promise.resolve([])]);
+            var g = res[0].status === "fulfilled" ? res[0].value : null;
+            var fmItems = res[1].status === "fulfilled" ? fmFilter(res[1].value, topic.fm || {}) : [];
+            if (!g && !fmItems.length) throw (res[0].reason || new Error("Actualités indisponibles"));
+            var items = dedupe(fmItems.concat(g ? g.data : []));
+            items.sort(function (a, b) { return b.date - a.date; });
+            return {
+                data: items.slice(0, 50), stale: g ? g.stale : false, fetchedAt: g ? g.fetchedAt : Date.now(),
+                fm: fmItems.length, google: g ? g.data.length : 0
+            };
         },
 
         // { data: [{title, source, link, date}], stale, fetchedAt }
