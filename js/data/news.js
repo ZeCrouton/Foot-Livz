@@ -80,10 +80,11 @@
     var FM_FEED = "https://www.footmercato.net/flux-rss";
     var FM_TTL = 10 * 60 * 1000;
     var FM_PROXIES = PROXIES.filter(function (p) { return p.name !== "worker"; });   // le Worker ne relaie que Google
-    var MERCATO_RE = /mercato|transfert|recrue|recrut|\bpret\b|prolong|officiel|signe|s'engage|contrat|depart|quitter|rejoindre|\boffre\b|piste|cible|interet|interesse|negoci|accord|clause|vente|achat|arrivee|libre|resili|bail/;
+    // « Officiel » = signatures/transferts actés (pas les « compositions officielles »)
+    var OFFICIEL_RE = /^(?!.*composition).*(\bofficiel(le)?\b|officialis|s'engage|\bsigne\b|\brejoint\b|c'est fait)/;
 
-    function fmItem(title, link, date, cats, desc) {
-        var tags = FL.norm((Array.isArray(cats) ? cats.join(", ") : cats || "") + " | " + String(desc || "").replace(/<[^>]*>/g, " ")).slice(0, 400);
+    function fmItem(title, link, date, cats) {
+        var tags = FL.norm(Array.isArray(cats) ? cats.join(", ") : cats || "").slice(0, 300);
         return { title: String(title || "").trim(), source: "Foot Mercato", link: safeLink(String(link || "").trim()), date: parseDate(date), tags: tags };
     }
 
@@ -94,14 +95,14 @@
         if (p.json) {
             var j = await r.json();
             if (j.status !== "ok") throw new Error(p.name + " refus");
-            items = (j.items || []).map(function (x) { return fmItem(x.title, x.link, x.pubDate, x.categories, x.description); });
+            items = (j.items || []).map(function (x) { return fmItem(x.title, x.link, x.pubDate, x.categories); });
         } else {
             var doc = new DOMParser().parseFromString(await r.text(), "text/xml");
             if (doc.querySelector("parsererror")) throw new Error("RSS illisible");
             items = Array.prototype.map.call(doc.querySelectorAll("item"), function (it) {
                 function txt(tag) { var e = it.querySelector(tag); return e ? e.textContent : ""; }
                 var cats = Array.prototype.map.call(it.querySelectorAll("category"), function (c) { return c.textContent; });
-                return fmItem(txt("title"), txt("link"), txt("pubDate"), cats, txt("description"));
+                return fmItem(txt("title"), txt("link"), txt("pubDate"), cats);
             });
         }
         items = items.filter(function (x) { return x.title && x.link; });
@@ -110,11 +111,11 @@
     }
 
     async function fmLoad(force) {
-        var c = cacheGet("__fm");
+        var c = cacheGet("__fm2");
         if (!force && c && Date.now() - c.t < FM_TTL) return c.v;
         try {
             var items = await Promise.any(FM_PROXIES.map(fmViaProxy));
-            cacheSet("__fm", items);
+            cacheSet("__fm2", items);
             return items;
         } catch (e) {
             if (c) return c.v;
@@ -154,8 +155,8 @@
     function fmFilter(items, fm) {
         return items.filter(function (a) {
             var title = FL.norm(a.title), all = title + " | " + (a.tags || "");
-            if (fm.keys && !fm.keys.some(function (k) { return hasWord(fm.titleOnly ? title : all, k); })) return false;
-            if (fm.re && !fm.re.test(all)) return false;
+            if (fm.keys && !fm.keys.some(function (k) { return hasWord(all, k); })) return false;
+            if (fm.re && !fm.re.test(title)) return false;
             return true;
         }).map(function (a) { return { title: a.title, source: a.source, link: a.link, date: a.date }; });
     }
@@ -194,19 +195,19 @@
             list.push({
                 id: "club", label: club.name, logo: club.logo,
                 query: club.national ? club.name + " football sélection" : '"' + club.name + '" football ' + mercatoWords + " when:30d",
-                fm: { keys: clubKeys(club.name), re: club.national ? null : MERCATO_RE }
+                fm: { keys: clubKeys(club.name) }
             });
             FL.prefs.followed().filter(function (t) { return t.id !== club.id && !t.national; }).slice(0, 4).forEach(function (t) {
-                list.push({ id: "t" + t.id, label: t.name, logo: t.logo, query: '"' + t.name + '" football ' + mercatoWords + " when:30d", fm: { keys: clubKeys(t.name), re: MERCATO_RE } });
+                list.push({ id: "t" + t.id, label: t.name, logo: t.logo, query: '"' + t.name + '" football ' + mercatoWords + " when:30d", fm: { keys: clubKeys(t.name) } });
             });
             list.push(
-                { id: "une", label: "À la une", query: "mercato football when:3d", fm: { re: MERCATO_RE } },
-                { id: "officiel", label: "Officiel", query: "transfert officiel football officialise when:7d", fm: { re: /officiel|officialis|s'engage|signe/ } },
-                { id: "l1", label: "Ligue 1", query: "mercato Ligue 1 when:14d", fm: { keys: ["ligue 1"], re: MERCATO_RE } },
-                { id: "pl", label: "Premier League", query: "mercato Premier League when:14d", fm: { keys: ["premier league"], re: MERCATO_RE } },
-                { id: "liga", label: "Liga", query: "mercato Liga Real Barça when:14d", fm: { keys: ["liga", "laliga"], re: MERCATO_RE } },
-                { id: "seriea", label: "Serie A", query: "mercato Serie A when:14d", fm: { keys: ["serie a"], re: MERCATO_RE } },
-                { id: "bundes", label: "Bundesliga", query: "mercato Bundesliga when:14d", fm: { keys: ["bundesliga"], re: MERCATO_RE } }
+                { id: "une", label: "À la une", query: "mercato football when:3d", fm: {} },
+                { id: "officiel", label: "Officiel", query: "transfert officiel football officialise when:7d", fm: { re: OFFICIEL_RE } },
+                { id: "l1", label: "Ligue 1", query: "mercato Ligue 1 when:14d", fm: { keys: ["ligue 1"] } },
+                { id: "pl", label: "Premier League", query: "mercato Premier League when:14d", fm: { keys: ["premier league"] } },
+                { id: "liga", label: "Liga", query: "mercato Liga Real Barça when:14d", fm: { keys: ["liga", "laliga"] } },
+                { id: "seriea", label: "Serie A", query: "mercato Serie A when:14d", fm: { keys: ["serie a"] } },
+                { id: "bundes", label: "Bundesliga", query: "mercato Bundesliga when:14d", fm: { keys: ["bundesliga"] } }
             );
             return list;
         },

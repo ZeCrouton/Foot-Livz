@@ -1,5 +1,5 @@
 /* Service Worker FootLivz — cache shell statique */
-var CACHE = "fl-v3";
+var CACHE = "fl-v4";
 var SHELL = [
     "/Foot-Livz/",
     "/Foot-Livz/index.html",
