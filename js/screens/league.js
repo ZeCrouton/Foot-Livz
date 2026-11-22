@@ -18,17 +18,19 @@
         window.location.href = "league.html?league=" + encodeURIComponent(e.target.value);
     });
 
+    var tableLive = false;
     async function renderTable() {
         if (!FL.hasTable(slug)) return FL.notice("Pas de classement pour cette compétition.");
         var f = await FL.espn.standings(slug, false);
         if (!f.data.length) return FL.notice("Classement indisponible.");
-        return FL.staleBanner(f) + f.data.map(function (g) {
+        tableLive = !!f.live;
+        return FL.staleBanner(f) + (f.live ? '<p class="muted small"><span class="live-dot"></span> Classement en direct : il tient compte des scores des matchs en cours.</p>' : "") + f.data.map(function (g) {
             return (g.name ? '<h3 class="day-title">' + FL.esc(g.name) + "</h3>" : "") +
                 '<div class="card table-wrap"><table class="table"><thead><tr>' +
                 "<th>#</th><th>Équipe</th><th>J</th><th>G</th><th>N</th><th>P</th><th>Diff</th><th>Pts</th></tr></thead><tbody>" +
                 g.rows.map(function (r) {
                     return "<tr><td>" + r.pos + '</td><td class="team-cell"><a href="' + FL.teamUrl(slug, r.teamId) + '">' +
-                        FL.logo(r.logo) + FL.esc(r.team) + "</a>" +
+                        FL.logo(r.logo) + FL.esc(r.team) + "</a>" + (r.live ? ' <span class="live-dot"></span>' : "") +
                         (r.note ? '<small class="note" style="' + (r.noteColor ? "border-color:#" + FL.esc(r.noteColor) : "") + '">' + FL.esc(r.note) + "</small>" : "") +
                         "</td><td>" + r.played + "</td><td>" + r.won + "</td><td>" + r.drawn + "</td><td>" + r.lost +
                         "</td><td>" + (r.diff > 0 ? "+" : "") + r.diff + "</td><td><strong>" + r.pts + "</strong></td></tr>";
@@ -49,7 +51,19 @@
 
     try {
         var table = await renderTable();
-        content.innerHTML = table;
+        content.innerHTML = '<div id="table-box">' + table + "</div>";
+        // pendant un match, le classement se rafraîchit tout seul toutes les 30 s
+        if (tableLive) {
+            var timer = setInterval(async function () {
+                if (document.hidden) return;
+                try {
+                    var html = await renderTable();
+                    var box = document.getElementById("table-box");
+                    if (box) box.innerHTML = html;
+                    if (!tableLive) clearInterval(timer);
+                } catch (e) { /* on réessaie au prochain tour */ }
+            }, 30000);
+        }
     } catch (e) {
         content.innerHTML = FL.notice("Classement indisponible. Vérifiez votre connexion.", "error");
     }

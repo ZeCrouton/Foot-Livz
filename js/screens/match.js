@@ -26,24 +26,65 @@
         FL.esc(m.state === "PRE" ? "" : (m.state === "LIVE" ? (m.clock || "En direct") : m.statusText)) +
         (m.venue ? " · " + FL.esc(m.venue) : "") + "</div></div>";
 
+    // ── Faits de match en français (même logique que l'APK) ──────────────
+    var REPLACES = /(.+?) replaces (.+?)(?:\.|,| because|$)/i;
+    function afterLast(str, sep) { var i = str.lastIndexOf(sep); return i >= 0 ? str.slice(i + sep.length) : str; }
+    function eventLabel(e) {
+        var p = e.players || [], r = (e.rawType || "").toLowerCase();
+        switch (e.type) {
+            case "GOAL": return ["⚽", "But — " + (p[0] || "") + (p[1] ? " (passe de " + p[1] + ")" : "")];
+            case "PENALTY_GOAL": return ["⚽", "But sur penalty — " + (p[0] || "")];
+            case "OWN_GOAL": return ["⚽", "But contre son camp — " + (p[0] || "")];
+            case "YELLOW": return ["🟨", p[0] || "Carton jaune"];
+            case "RED": return ["🟥", (p[0] || "Carton rouge") + (r.indexOf("yellow") >= 0 ? " (2e jaune)" : "")];
+            case "SUB": {
+                var t = e.text || "", i = t.indexOf(". ");
+                var mt = REPLACES.exec(i >= 0 ? t.slice(i + 2) : t);
+                var inP = mt ? afterLast(mt[1].trim(), ". ") : (p[0] || "?");
+                var outP = mt ? mt[2].trim() : (p[1] || "?");
+                return ["🔁", inP + " remplace " + outP];
+            }
+            case "PERIOD":
+                if (r.indexOf("kickoff") >= 0 || r.indexOf("kick off") >= 0) return ["⏱", "Coup d'envoi"];
+                if (r.indexOf("halftime") >= 0 || r.indexOf("half time") >= 0) return ["⏱", "Mi-temps"];
+                if (r.indexOf("start 2nd") >= 0 || r.indexOf("second half") >= 0 || r.indexOf("start second") >= 0) return ["⏱", "Reprise"];
+                if (r.indexOf("extra") >= 0) return ["⏱", "Prolongation"];
+                if (r.indexOf("end") >= 0 || r.indexOf("full") >= 0) return ["⏱", "Fin du match"];
+                return null;
+            default:
+                if (r.indexOf("penalty") >= 0 && r.indexOf("saved") >= 0) return ["🧤", "Penalty arrêté — " + (p[0] || "")];
+                if (r.indexOf("penalty") >= 0 && r.indexOf("missed") >= 0) return ["❌", "Penalty manqué — " + (p[0] || "")];
+                if (r.indexOf("var") >= 0 || r.indexOf("disallowed") >= 0) return ["📺", "But refusé (VAR)"];
+                return null;
+        }
+    }
+
     // Les faits les plus récents en premier (comme sur l'APK)
-    var events = d.events.filter(function (e) { return e.type !== "PERIOD" && e.type !== "OTHER"; }).reverse();
+    var events = d.events.map(function (e) { return { e: e, l: eventLabel(e) }; })
+        .filter(function (x) { return x.l; }).reverse();
     var eventsHtml = events.length
-        ? '<h3 class="day-title">Faits marquants</h3><div class="card">' + events.map(function (e) {
-            var icon = { GOAL: "⚽", PENALTY_GOAL: "⚽ (pen.)", OWN_GOAL: "⚽ (csc)", YELLOW: "🟨", RED: "🟥", SUB: "🔁" }[e.type] || "•";
-            return '<div class="list-row"><span class="rank">' + FL.esc(e.minute) + "</span><span>" + icon + " " +
-                FL.esc(e.players.join(", ") || e.rawType) + '</span><small>' + FL.esc(nameOf[e.teamId] || "") + "</small></div>";
+        ? '<h3 class="day-title">Faits marquants</h3><div class="card">' + events.map(function (x) {
+            return '<div class="list-row"><span class="rank">' + FL.esc(x.e.minute) + "</span><span>" + x.l[0] + " " +
+                FL.esc(x.l[1]) + '</span><small>' + FL.esc(nameOf[x.e.teamId] || "") + "</small></div>";
         }).join("") + "</div>"
         : "";
 
+    var STAT_ROWS = [
+        ["possessionPct", "Possession"], ["totalShots", "Tirs"], ["shotsOnTarget", "Tirs cadrés"],
+        ["wonCorners", "Corners"], ["offsides", "Hors-jeu"], ["foulsCommitted", "Fautes"],
+        ["accuratePasses", "Passes réussies"], ["saves", "Arrêts"],
+        ["yellowCards", "Cartons jaunes"], ["redCards", "Cartons rouges"]
+    ];
     var statsHtml = "";
     var tids = [m.home.id, m.away.id];
-    if (d.statOrder.length) {
-        statsHtml = '<h3 class="day-title">Statistiques</h3><div class="card table-wrap"><table class="table"><tbody>' +
-            d.statOrder.map(function (k) {
-                var h = (d.teamStats[tids[0]] || {})[k] || "–", a = (d.teamStats[tids[1]] || {})[k] || "–";
-                return "<tr><td>" + FL.esc(h) + "</td><td class=\"stat-name\">" + FL.esc(k) + "</td><td>" + FL.esc(a) + "</td></tr>";
-            }).join("") + "</tbody></table></div>";
+    var hs = d.teamStats[tids[0]] || {}, as = d.teamStats[tids[1]] || {};
+    var statRowsHtml = STAT_ROWS.filter(function (r) { return hs[r[0]] != null && as[r[0]] != null; }).map(function (r) {
+        var pct = r[0] === "possessionPct";
+        function fmt(v) { return pct ? Math.round(parseFloat(String(v).replace(",", "."))) + " %" : v; }
+        return "<tr><td>" + FL.esc(fmt(hs[r[0]])) + "</td><td class=\"stat-name\">" + FL.esc(r[1]) + "</td><td>" + FL.esc(fmt(as[r[0]])) + "</td></tr>";
+    }).join("");
+    if (statRowsHtml) {
+        statsHtml = '<h3 class="day-title">Statistiques</h3><div class="card table-wrap"><table class="table"><tbody>' + statRowsHtml + "</tbody></table></div>";
     }
 
     var lineupsHtml = d.lineups.length ? '<h3 class="day-title">Compositions</h3>' + d.lineups.map(function (lu) {

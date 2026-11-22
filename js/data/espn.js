@@ -267,6 +267,37 @@
         return rows.sort(function (a, b) { return a.pos - b.pos; });
     }
 
+    // Classement en direct : ajoute au classement ESPN le score actuel des matchs en cours (comme Foot Mercato).
+    // ESPN ne met son classement à jour qu'après le coup de sifflet final.
+    function applyLive(groups, matches) {
+        var live = matches.filter(function (m) { return m.state === "LIVE"; });
+        if (!live.length) return false;
+        var any = false;
+        groups.forEach(function (g) {
+            var byId = {}, touched = false;
+            g.rows.forEach(function (r) { byId[r.teamId] = r; });
+            // les zones (Ligue des champions, relégation…) restent attachées aux places, pas aux équipes
+            var zones = g.rows.map(function (r) { return { note: r.note, noteColor: r.noteColor }; });
+            live.forEach(function (m) {
+                var h = byId[m.home.id], a = byId[m.away.id];
+                if (!h || !a) return;
+                var hs = parseInt(m.homeScore, 10) || 0, as = parseInt(m.awayScore, 10) || 0;
+                h.played++; a.played++;
+                h.gf += hs; h.ga += as; a.gf += as; a.ga += hs;
+                h.diff += hs - as; a.diff += as - hs;
+                if (hs > as) { h.won++; h.pts += 3; a.lost++; }
+                else if (hs < as) { a.won++; a.pts += 3; h.lost++; }
+                else { h.drawn++; a.drawn++; h.pts++; a.pts++; }
+                h.live = a.live = true;
+                touched = any = true;
+            });
+            if (!touched) return;
+            g.rows.sort(function (x, y) { return (y.pts - x.pts) || (y.diff - x.diff) || (y.gf - x.gf) || (x.pos - y.pos); });
+            g.rows.forEach(function (r, i) { r.pos = i + 1; r.note = zones[i].note; r.noteColor = zones[i].noteColor; });
+        });
+        return any;
+    }
+
     function parseStandings(o) {
         var groups = [];
         if (o.children && o.children.length) {
@@ -463,8 +494,11 @@
 
         standings: async function (league, force) {
             if (l3(league)) return l3(league).standings(force);
-            var f = await get("/apis/v2/sports/soccer/" + league + "/standings", 600, force);
-            return { data: parseStandings(f.data), stale: f.stale, fetchedAt: f.fetchedAt };
+            var f = await get("/apis/v2/sports/soccer/" + league + "/standings", 120, force);
+            var data = parseStandings(f.data), live = false;
+            try { live = applyLive(data, (await FL.espn.scoreboard(league, Date.now(), false)).data); }
+            catch (e) { /* sans score en direct, on garde le classement ESPN */ }
+            return { data: data, stale: f.stale, fetchedAt: f.fetchedAt, live: live };
         },
 
         leaders: async function (league, force) {
