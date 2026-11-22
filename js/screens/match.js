@@ -26,7 +26,8 @@
         FL.esc(m.state === "PRE" ? "" : (m.state === "LIVE" ? (m.clock || "En direct") : m.statusText)) +
         (m.venue ? " · " + FL.esc(m.venue) : "") + "</div></div>";
 
-    var events = d.events.filter(function (e) { return e.type !== "PERIOD" && e.type !== "OTHER"; });
+    // Les faits les plus récents en premier (comme sur l'APK)
+    var events = d.events.filter(function (e) { return e.type !== "PERIOD" && e.type !== "OTHER"; }).reverse();
     var eventsHtml = events.length
         ? '<h3 class="day-title">Faits marquants</h3><div class="card">' + events.map(function (e) {
             var icon = { GOAL: "⚽", PENALTY_GOAL: "⚽ (pen.)", OWN_GOAL: "⚽ (csc)", YELLOW: "🟨", RED: "🟥", SUB: "🔁" }[e.type] || "•";
