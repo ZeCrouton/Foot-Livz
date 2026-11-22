@@ -548,7 +548,7 @@
                 var slug = lg.slug || league;
                 var known = FL.leagues.some(function (x) { return x.slug === slug; });
                 return parseEvent(e, slug, known ? FL.leagueName(slug) : (lg.name || slug));
-            }).filter(Boolean);
+            }).filter(Boolean).sort(function (x, y) { return x.date - y.date; });   // ESPN renvoie parfois du plus récent au plus ancien
         },
 
         // Matchs à venir (et récents) d'une équipe, toutes compétitions
