@@ -79,7 +79,9 @@
     // Flux unique (toute l'actu de footmercato.net), filtré ensuite par thème grâce aux mots-clés <category>.
     var FM_FEED = "https://www.footmercato.net/flux-rss";
     var FM_TTL = 10 * 60 * 1000;
-    var FM_PROXIES = PROXIES.filter(function (p) { return p.name !== "worker"; });   // le Worker ne relaie que Google
+    // 1) notre Worker /fm (frais à 2 min près) ; 2) relais publics en secours (rss2json garde souvent le flux en cache plusieurs heures)
+    var FM_WORKER = { name: "worker-fm", build: function () { return WORKER + "/fm"; } };
+    var FM_PROXIES = PROXIES.filter(function (p) { return p.name !== "worker"; });
     // Mots du mercato, testés sur le titre seulement
     var MERCATO_RE = /mercato|transfert|recrue|recrut|\bpret\b|prolong|\bofficiel(le)?\b|\bsigne|s'engage|contrat|depart|partir|quitter|rejoindre|rejoint|\boffre\b|piste|cible|interet|interesse|negoci|accord|clause|vente|achat|arrivee|libre|resili|courtis|reve de|fonce sur|vers un|blinde|ecarte/;
     // « Officiel » = signatures/transferts actés (pas les « compositions officielles »)
@@ -116,7 +118,9 @@
         var c = cacheGet("__fm2");
         if (!force && c && Date.now() - c.t < FM_TTL) return c.v;
         try {
-            var items = await Promise.any(FM_PROXIES.map(fmViaProxy));
+            var items;
+            try { items = await fmViaProxy(FM_WORKER); }
+            catch (e1) { items = await Promise.any(FM_PROXIES.map(fmViaProxy)); }
             cacheSet("__fm2", items);
             return items;
         } catch (e) {

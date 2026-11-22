@@ -1,5 +1,5 @@
 /* Service Worker FootLivz — cache shell statique */
-var CACHE = "fl-v5";
+var CACHE = "fl-v6";
 var SHELL = [
     "/Foot-Livz/",
     "/Foot-Livz/index.html",
@@ -35,7 +35,8 @@ self.addEventListener("fetch", function (e) {
     if (e.request.method !== "GET") return;
     var url = e.request.url;
     /* Ne pas intercepter les appels API externes */
-    if (url.indexOf("espn.com") !== -1 || url.indexOf("workers.dev") !== -1 || url.indexOf("bing.com") !== -1) return;
+    if (url.indexOf("espn.com") !== -1 || url.indexOf("workers.dev") !== -1 || url.indexOf("bing.com") !== -1 ||
+        url.indexOf("rss2json") !== -1 || url.indexOf("allorigins") !== -1 || url.indexOf("corsproxy") !== -1 || url.indexOf("codetabs") !== -1) return;
     e.respondWith(
         fetch(e.request).then(function (r) {
             var clone = r.clone();
