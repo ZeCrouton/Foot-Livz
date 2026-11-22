@@ -80,6 +80,8 @@
     var FM_FEED = "https://www.footmercato.net/flux-rss";
     var FM_TTL = 10 * 60 * 1000;
     var FM_PROXIES = PROXIES.filter(function (p) { return p.name !== "worker"; });   // le Worker ne relaie que Google
+    // Mots du mercato, testés sur le titre seulement
+    var MERCATO_RE = /mercato|transfert|recrue|recrut|\bpret\b|prolong|\bofficiel(le)?\b|\bsigne|s'engage|contrat|depart|partir|quitter|rejoindre|rejoint|\boffre\b|piste|cible|interet|interesse|negoci|accord|clause|vente|achat|arrivee|libre|resili|courtis|reve de|fonce sur|vers un|blinde|ecarte/;
     // « Officiel » = signatures/transferts actés (pas les « compositions officielles »)
     var OFFICIEL_RE = /^(?!.*composition).*(\bofficiel(le)?\b|officialis|s'engage|\bsigne\b|\brejoint\b|c'est fait)/;
 
@@ -201,7 +203,8 @@
                 list.push({ id: "t" + t.id, label: t.name, logo: t.logo, query: '"' + t.name + '" football ' + mercatoWords + " when:30d", fm: { keys: clubKeys(t.name) } });
             });
             list.push(
-                { id: "une", label: "À la une", query: "mercato football when:3d", fm: {} },
+                { id: "tous", label: "Tous", query: "football (mercato OR transfert OR Ligue 1 OR blessure) when:2d", fm: {} },
+                { id: "une", label: "À la une", query: "mercato football when:3d", fm: { re: MERCATO_RE } },
                 { id: "officiel", label: "Officiel", query: "transfert officiel football officialise when:7d", fm: { re: OFFICIEL_RE } },
                 { id: "l1", label: "Ligue 1", query: "mercato Ligue 1 when:14d", fm: { keys: ["ligue 1"] } },
                 { id: "pl", label: "Premier League", query: "mercato Premier League when:14d", fm: { keys: ["premier league"] } },
