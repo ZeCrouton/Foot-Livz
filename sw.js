@@ -1,5 +1,5 @@
 /* Service Worker FootLivz — cache shell statique */
-var CACHE = "fl-v12";
+var CACHE = "fl-v13";
 var SHELL = [
     "/Foot-Livz/",
     "/Foot-Livz/index.html",
@@ -46,4 +46,31 @@ self.addEventListener("fetch", function (e) {
             return caches.match(e.request);
         })
     );
+});
+
+/* Notifications Web Push (envoyées par le serveur footlivz) */
+self.addEventListener("push", function (e) {
+    var d = {};
+    try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: "Foot Livz", body: e.data ? e.data.text() : "" }; }
+    e.waitUntil(self.registration.showNotification(d.title || "Foot Livz", {
+        body: d.body || "",
+        tag: d.tag || undefined,
+        icon: "/Foot-Livz/icons/icon-192.png",
+        badge: "/Foot-Livz/icons/icon-192.png",
+        data: { url: d.url || "/Foot-Livz/" }
+    }));
+});
+
+self.addEventListener("notificationclick", function (e) {
+    e.notification.close();
+    var url = (e.notification.data && e.notification.data.url) || "/Foot-Livz/";
+    e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].url.indexOf("/Foot-Livz/") !== -1 && "focus" in list[i]) {
+                if ("navigate" in list[i]) list[i].navigate(url);
+                return list[i].focus();
+            }
+        }
+        return self.clients.openWindow(url);
+    }));
 });

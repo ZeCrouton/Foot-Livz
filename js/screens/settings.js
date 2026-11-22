@@ -20,6 +20,8 @@
             '<label class="small">Couleur personnalisée <input type="color" id="theme-color" value="#' + swatch.primary + '"></label>' +
             (theme.color ? '<button type="button" class="btn small" id="theme-reset">Couleur du club</button>' : "") + "</div></div>" +
 
+            '<h3 class="day-title">Notifications</h3><div class="card pad" id="notif-box"></div>' +
+
             '<h3 class="day-title">Équipes suivies</h3><div class="card">' +
             (followed.length ? followed.map(function (t) {
                 return '<div class="list-row"><span class="list-main">' + FL.logo(t.logo) + "<span>" + FL.esc(t.name) + "</span></span>" +
@@ -34,6 +36,32 @@
             '<p><button type="button" id="reset" class="btn danger">Réinitialiser les réglages</button></p>';
 
         bind();
+        renderNotif();
+    }
+
+    // ---- Notifications
+    async function renderNotif() {
+        var box = document.getElementById("notif-box");
+        if (!box) return;
+        var N = FL.notify, perm = N.permission(), html;
+        if (!N.supported()) {
+            html = '<p class="muted small">Ce navigateur ne gère pas les notifications. Sur iPhone : ajoute d\'abord le site à l\'écran d\'accueil (Partager → Sur l\'écran d\'accueil), puis rouvre-le depuis l\'icône.</p>';
+        } else if (perm === "denied") {
+            html = '<p class="muted small">Les notifications sont bloquées pour ce site. Autorise-les dans les réglages du navigateur (cadenas près de l\'adresse), puis reviens ici.</p>';
+        } else if (N.enabled()) {
+            var push = await N.hasPush();
+            html = '<p><strong>Activées</strong> pour tes équipes suivies : buts, coup d\'envoi, mi-temps et fin du match.</p>' +
+                '<p class="muted small">' + (push ? "Tu les reçois même quand l\'appli est fermée." : "Tu les reçois quand le site est ouvert (l\'envoi appli fermée n\'est pas disponible sur cet appareil).") + "</p>" +
+                '<p><button type="button" class="btn small" id="notif-test">Envoyer un test</button> <button type="button" class="btn small" id="notif-off">Désactiver</button></p>';
+        } else {
+            html = '<p class="muted small">Reçois une alerte à chaque but, au coup d\'envoi, à la mi-temps et à la fin des matchs de tes équipes suivies.</p>' +
+                '<p><button type="button" class="btn" id="notif-on">Activer les notifications</button></p>';
+        }
+        box.innerHTML = html;
+        var on = document.getElementById("notif-on"), off = document.getElementById("notif-off"), test = document.getElementById("notif-test");
+        if (on) on.addEventListener("click", async function () { on.disabled = true; await N.enable(); renderNotif(); });
+        if (off) off.addEventListener("click", async function () { off.disabled = true; await N.disable(); renderNotif(); });
+        if (test) test.addEventListener("click", function () { N.test(); });
     }
 
     function bind() {
@@ -58,13 +86,14 @@
         });
 
         app.querySelectorAll("button[data-unfollow]").forEach(function (b) {
-            b.addEventListener("click", function () { FL.prefs.unfollow(b.getAttribute("data-unfollow")); render(); });
+            b.addEventListener("click", function () { FL.prefs.unfollow(b.getAttribute("data-unfollow")); render(); FL.notify.sync(); });
         });
 
         app.querySelectorAll(".checks input").forEach(function (c) {
             c.addEventListener("change", function () {
                 var list = Array.prototype.slice.call(app.querySelectorAll(".checks input:checked")).map(function (x) { return x.value; });
                 FL.prefs.setCompetitions(list);
+                FL.notify.sync();
             });
         });
 

@@ -113,4 +113,7 @@
             if (t && t.color) { FL.prefs.updateClub(club.id, { color: t.color, alt: t.alt }); FL.theme.applyFromPrefs(); }
         } catch (e) { /* on garde le thème neutre */ }
     })();
+
+    // Notifications (si l'utilisateur les a activées)
+    if (FL.notify) FL.notify.start();
 })();
