@@ -66,12 +66,22 @@
         }
     }
     loadLive(false);
-    FL.every(30000, function () { loadLive(hasLive); });
+    // Pendant un match (et une dernière fois à la fin), tout l'accueil se met à jour tout seul.
+    var wasLive = false;
+    FL.every(30000, async function () {
+        if (document.hidden) return;
+        var before = hasLive;
+        await loadLive(hasLive);
+        if (hasLive || before || wasLive) {
+            loadAgenda(true); loadResults(true); loadTable(hasLive);
+        }
+        wasLive = hasLive;
+    });
 
     // ---------------------------------------------------------------- Agenda (toutes mes équipes)
-    (async function () {
+    async function loadAgenda(force) {
         var teams = FL.prefs.teams();
-        var res = await Promise.allSettled(teams.map(function (t) { return FL.espn.teamFixtures(t, false); }));
+        var res = await Promise.allSettled(teams.map(function (t) { return FL.espn.teamFixtures(t, force); }));
         if (res.every(function (r) { return r.status === "rejected"; })) {
             fill("s-agenda", FL.notice("Impossible de charger l'agenda.", "error"));
             return;
@@ -105,13 +115,15 @@
                 box.innerHTML = '<p class="next-empty">Aucun match programmé pour le moment.</p>';
             }
         }
-    })();
+    }
+    loadAgenda(false);
 
     // ---------------------------------------------------------------- Résultats + forme du club
-    if (hasClub) {
-        (async function () {
+    async function loadResults(force) {
+        if (!hasClub) return;
+        {
             try {
-                var past = await FL.espn.schedule(club.league, club.id, false, false);
+                var past = await FL.espn.schedule(club.league, club.id, false, force);
                 var done = past.filter(function (m) { return m.state === "POST"; }).sort(function (a, b) { return a.date - b.date; });
                 var last = done.slice(-5);
                 document.getElementById("form").innerHTML = last.map(function (m) {
@@ -124,14 +136,16 @@
             } catch (e) {
                 fill("s-results", FL.notice("Résultats indisponibles.", "error"));
             }
-        })();
+        }
     }
+    loadResults(false);
 
     // ---------------------------------------------------------------- Classement
-    if (hasTable) {
-        (async function () {
+    async function loadTable(force) {
+        if (!hasTable) return;
+        {
             try {
-                var f = await FL.espn.standings(club.league, false);
+                var f = await FL.espn.standings(club.league, force);
                 var group = f.data.filter(function (g) { return g.rows.some(function (r) { return r.teamId === club.id; }); })[0] || f.data[0];
                 if (!group) { fill("s-table", FL.notice("Classement indisponible.")); return; }
                 var idx = group.rows.findIndex(function (r) { return r.teamId === club.id; });
@@ -151,8 +165,9 @@
             } catch (e) {
                 fill("s-table", FL.notice("Classement indisponible.", "error"));
             }
-        })();
+        }
     }
+    loadTable(false);
 
     // ---------------------------------------------------------------- Mercato
     (async function () {

@@ -11,7 +11,15 @@
     try { f = await FL.espn.summary(params.league, params.id, false); }
     catch (e) { app.innerHTML = FL.notice(e && e.friendly ? e.message : "Match indisponible. Vérifiez votre connexion.", "error"); return; }
 
+    var lastSig = "";
+    function sigOf(g) {
+        var mm = g.data.match;
+        return JSON.stringify([mm.state, mm.homeScore, mm.awayScore, mm.clock, g.data.events.length, g.data.teamStats]);
+    }
+
+    function render(f) {
     var d = f.data, m = d.match;
+    lastSig = sigOf(f);
     var nameOf = {};
     nameOf[m.home.id] = m.home.short;
     nameOf[m.away.id] = m.away.short;
@@ -151,4 +159,25 @@
         })();
     }
     document.title = m.home.short + " - " + m.away.short + " - FootLivz";
+    }
+
+    render(f);
+
+    // Mise à jour automatique : pendant le match (et dans l'heure qui précède le coup d'envoi), toutes les 20 s.
+    // Seul ce qui a changé déclenche un nouvel affichage ; rien ne bouge si la page est en arrière-plan.
+    var m0 = f.data.match;
+    if (m0.state === "LIVE" || (m0.state === "PRE" && m0.date - Date.now() < 3600000)) {
+        var stop = FL.every(20000, async function () {
+            if (document.hidden) return;
+            try {
+                var g = await FL.espn.summary(params.league, params.id, true);
+                if (sigOf(g) !== lastSig) {
+                    var y = window.scrollY;
+                    render(g);
+                    window.scrollTo(0, y);
+                }
+                if (g.data.match.state === "POST") stop();   // match terminé : dernier affichage fait
+            } catch (e) { /* on garde l'affichage précédent */ }
+        });
+    }
 })();
