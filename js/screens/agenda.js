@@ -4,6 +4,7 @@
 
     var teams  = FL.prefs.teams();
     var mode   = "my";   // "my" | "all"
+    var view   = "next"; // "next" (à venir) | "results" (résultats)
     var filter = "";     // id équipe (mode "my" uniquement)
 
     // ── Données ────────────────────────────────────────────────────────────
@@ -47,6 +48,45 @@
         }
     }
 
+    // Résultats : 7 jours pour mes équipes (1 appel par équipe), 3 jours pour tous les matchs
+    var resMy = [], resMyLoaded = false, resMyLoading = false;
+    var resAll = [], resAllLoaded = false, resAllLoading = false;
+    var byDateDesc = function (a, b) { return b.date - a.date; };
+
+    async function loadResultsMy() {
+        if (resMyLoading) return;
+        resMyLoading = true;
+        try {
+            var since = Date.now() - 7 * 86400000;
+            // force : le calendrier mis en cache avant la fin d'un match ne le montrerait pas comme terminé
+            var r = await Promise.allSettled(teams.map(function (t) { return FL.espn.schedule(t.league, t.id, false, true); }));
+            var all = [];
+            r.forEach(function (x) { if (x.status === "fulfilled") all = all.concat(x.value); });
+            resMy = FL.uniqueMatches(all)
+                .filter(function (m) { return m.state === "POST" && m.date > since; })
+                .sort(byDateDesc);
+        } finally { resMyLoaded = true; resMyLoading = false; }
+    }
+
+    async function loadResultsAll() {
+        if (resAllLoading) return;
+        resAllLoading = true;
+        try {
+            var now = Date.now();
+            var days = [0, 1, 2].map(function (i) { return now - i * 86400000; });
+            var r = await Promise.allSettled(days.map(function (d) { return FL.espn.dayMatches(d, true); }));
+            var flat = [];
+            r.forEach(function (x) { if (x.status === "fulfilled") flat = flat.concat(x.value.matches); });
+            resAll = FL.uniqueMatches(flat)
+                .filter(function (m) { return m.state === "POST"; })
+                .sort(byDateDesc);
+        } finally { resAllLoaded = true; resAllLoading = false; }
+    }
+
+    function loadResults() {
+        return mode === "my" ? loadResultsMy() : loadResultsAll();
+    }
+
     // Chargement initial des équipes suivies
     var now = Date.now();
     var r = await Promise.allSettled(teams.map(function (t) { return FL.espn.teamFixtures(t, false); }));
@@ -65,7 +105,8 @@
     // ── Rendu ──────────────────────────────────────────────────────────────
 
     function render() {
-        var source = mode === "my" ? myMatches : allMatches;
+        var results = view === "results";
+        var source = results ? (mode === "my" ? resMy : resAll) : (mode === "my" ? myMatches : allMatches);
         var shown  = source.filter(function (m) {
             return !filter || m.home.id === filter || m.away.id === filter;
         });
@@ -74,6 +115,11 @@
         var modeChips =
             '<button class="chip mode-chip' + (mode === "my"  ? " active" : "") + '" data-mode="my">Mes équipes</button>' +
             '<button class="chip mode-chip' + (mode === "all" ? " active" : "") + '" data-mode="all">Tous les matchs</button>';
+
+        // Chips À venir / Résultats
+        var viewChips =
+            '<button class="chip view-chip' + (!results ? " active" : "") + '" data-view="next">À venir</button>' +
+            '<button class="chip view-chip' + (results ? " active" : "") + '" data-view="results">Résultats</button>';
 
         // Chips équipes (seulement en mode "my")
         var teamChips = "";
@@ -85,12 +131,13 @@
 
         // Corps
         var body;
-        if (mode === "all" && !allLoaded) {
-            body = '<p class="loading">Chargement de tous les matchs…</p>';
+        var loaded = results ? (mode === "my" ? resMyLoaded : resAllLoaded) : (mode === "my" || allLoaded);
+        if (!loaded) {
+            body = '<p class="loading">Chargement des matchs…</p>';
         } else if (!shown.length) {
-            var msg = mode === "my"
-                ? "Aucun match programmé pour tes équipes."
-                : "Aucun match programmé dans les 7 prochains jours.";
+            var msg = results
+                ? (mode === "my" ? "Aucun résultat récent pour tes équipes." : "Aucun résultat dans les 3 derniers jours.")
+                : (mode === "my" ? "Aucun match programmé pour tes équipes." : "Aucun match programmé dans les 7 prochains jours.");
             body = FL.notice(msg);
         } else {
             body = FL.groupByDay(shown).map(function (g) {
@@ -102,13 +149,24 @@
         }
 
         app.innerHTML =
-            '<div class="chips agenda-chips">' + modeChips + teamChips + "</div>" +
+            '<div class="chips agenda-chips">' + viewChips + '<span class="chips-sep"></span>' + modeChips + teamChips + "</div>" +
             body;
     }
 
     // ── Événements ─────────────────────────────────────────────────────────
 
     app.addEventListener("click", function (e) {
+        // À venir / Résultats
+        var vb = e.target.closest("button.view-chip");
+        if (vb) {
+            var newView = vb.getAttribute("data-view");
+            if (newView === view) return;
+            view = newView;
+            render();
+            if (view === "results") loadResults().then(render);
+            else if (mode === "all" && !allLoaded) loadAllMatches(false).then(render);
+            return;
+        }
         // Changement de mode
         var mb = e.target.closest("button.mode-chip");
         if (mb) {
@@ -117,14 +175,16 @@
             mode   = newMode;
             filter = "";
             render();
-            if (mode === "all" && !allLoaded) {
+            if (view === "results") {
+                if (!(mode === "my" ? resMyLoaded : resAllLoaded)) loadResults().then(render);
+            } else if (mode === "all" && !allLoaded) {
                 loadAllMatches(false).then(render);
             }
             return;
         }
         // Filtre par équipe
         var cb = e.target.closest("button.chip");
-        if (!cb) return;
+        if (!cb || cb.classList.contains("view-chip") || cb.classList.contains("mode-chip")) return;
         filter = cb.getAttribute("data-value");
         render();
     });
