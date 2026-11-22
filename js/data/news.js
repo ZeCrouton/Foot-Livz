@@ -207,7 +207,7 @@
                 list.push({ id: "t" + t.id, label: t.name, logo: t.logo, query: '"' + t.name + '" football ' + mercatoWords + " when:30d", fm: { keys: clubKeys(t.name) } });
             });
             list.push(
-                { id: "tous", label: "Tous", query: "football (mercato OR transfert OR Ligue 1 OR blessure) when:2d", fm: {} },
+                { id: "tous", label: "Tous", query: "football (mercato OR transfert OR Ligue 1 OR blessure) when:2d", fm: {}, fast: true },
                 { id: "une", label: "À la une", query: "mercato football when:3d", fm: { re: MERCATO_RE } },
                 { id: "officiel", label: "Officiel", query: "transfert officiel football officialise when:7d", fm: { re: OFFICIEL_RE } },
                 { id: "l1", label: "Ligue 1", query: "mercato Ligue 1 when:14d", fm: { keys: ["ligue 1"] } },
@@ -221,7 +221,10 @@
 
         // Thème complet : Google Actualités + Foot Mercato, fusionnés, dédoublonnés, triés par date
         loadTopic: async function (topic, force) {
-            var res = await Promise.allSettled([this.load(topic.query, force), topic.fm ? fmLoad(force) : Promise.resolve([])]);
+            var gp = this.load(topic.query, force);
+            // Thème « rapide » : on n'attend pas Google plus de 2,5 s (sa réponse reste mise en cache pour la fois suivante)
+            if (topic.fast) gp = Promise.race([gp, new Promise(function (_, rej) { setTimeout(function () { rej(new Error("Google lent")); }, 2500); })]);
+            var res = await Promise.allSettled([gp, topic.fm ? fmLoad(force) : Promise.resolve([])]);
             var g = res[0].status === "fulfilled" ? res[0].value : null;
             var fmItems = res[1].status === "fulfilled" ? fmFilter(res[1].value, topic.fm || {}) : [];
             if (!g && !fmItems.length) throw (res[0].reason || new Error("Actualités indisponibles"));
