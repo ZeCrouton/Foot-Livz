@@ -99,8 +99,16 @@
             '<div class="xg-line"><span>' + FL.esc(m.home.short) + '</span><strong>' + FL.stats.fmtXg(x.h) + " – " + FL.stats.fmtXg(x.a) + '</strong><span>' + FL.esc(m.away.short) + "</span></div>" +
             (x.real ? '<div class="muted small">Source : Highlightly</div>' : "") + "</div>" : "";
     }
+    // Ligne de statistique avec jauge de couleur (comme dans l'application)
+    function statBar(label, a, b, la, lb, id) {
+        var total = (a + b) > 0 ? a + b : 1;
+        var fa = Math.min(0.98, Math.max(0.02, a / total));
+        return '<div class="stat-row"' + (id ? ' id="' + id + '"' : "") + '><div class="stat-head"><span class="stat-val' + (a > b ? " lead" : "") + '">' + FL.esc(la) + "</span>" +
+            '<span class="stat-label">' + FL.esc(label) + '</span><span class="stat-val' + (b > a ? " lead" : "") + '">' + FL.esc(lb) + "</span></div>" +
+            '<div class="stat-bar"><span class="' + (a >= b ? "on" : "off") + '" style="flex:' + fa.toFixed(3) + '"></span><span class="' + (b > a ? "on" : "off") + '" style="flex:' + (1 - fa).toFixed(3) + '"></span></div></div>';
+    }
     function xgRowHtml(x) {
-        return x ? "<tr id=\"xg-row\"><td>" + FL.stats.fmtXg(x.h) + "</td><td class=\"stat-name\">" + (x.real ? "xG" : "xG estimé") + "</td><td>" + FL.stats.fmtXg(x.a) + "</td></tr>" : "";
+        return x ? statBar(x.real ? "xG" : "xG estimé", x.h, x.a, FL.stats.fmtXg(x.h), FL.stats.fmtXg(x.a), "xg-row") : "";
     }
     var xgHtml = m.state === "POST" ? '<div id="xg-box">' + xgBoxHtml(xgInfo) + "</div>" : "";
 
@@ -121,12 +129,12 @@
     var hs = d.teamStats[tids[0]] || {}, as = d.teamStats[tids[1]] || {};
     var statRowsHtml = STAT_ROWS.filter(function (r) { return hs[r[0]] != null && as[r[0]] != null; }).map(function (r) {
         var pct = r[0] === "possessionPct";
-        function fmt(v) { return pct ? Math.round(parseFloat(String(v).replace(",", "."))) + " %" : v; }
-        return "<tr><td>" + FL.esc(fmt(hs[r[0]])) + "</td><td class=\"stat-name\">" + FL.esc(r[1]) + "</td><td>" + FL.esc(fmt(as[r[0]])) + "</td></tr>";
+        var va = parseFloat(String(hs[r[0]]).replace(",", ".")) || 0, vb = parseFloat(String(as[r[0]]).replace(",", ".")) || 0;
+        return statBar(r[1], va, vb, pct ? Math.round(va) + " %" : hs[r[0]], pct ? Math.round(vb) + " %" : as[r[0]]);
     }).join("");
     statRowsHtml = xgRowHtml(xgInfo) + statRowsHtml;
     if (statRowsHtml) {
-        statsHtml = '<h3 class="day-title">Statistiques</h3><div class="card table-wrap"><table class="table"><tbody>' + statRowsHtml + "</tbody></table></div>";
+        statsHtml = '<h3 class="day-title">Statistiques</h3><div class="card pad stats-card"><div class="stat-teams"><strong>' + FL.esc(m.home.short) + "</strong><strong>" + FL.esc(m.away.short) + "</strong></div>" + statRowsHtml + "</div>";
     }
 
     var lineupsHtml = d.lineups.length ? '<h3 class="day-title">Compositions</h3>' + d.lineups.map(function (lu) {
