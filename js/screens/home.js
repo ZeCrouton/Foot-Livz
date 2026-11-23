@@ -17,9 +17,9 @@
 
     // ---------------------------------------------------------------- structure
     var hero = hasClub
-        ? '<div class="hero" id="hero"><div class="hero-top">' + FL.logo(club.logo).replace('class="logo"', 'class="logo hero-logo"') +
+        ? '<div class="hero" id="hero"><a class="hero-top" href="' + FL.teamUrl(club.league, club.id) + '" title="Fiche du club">' + FL.logo(club.logo).replace('class="logo"', 'class="logo hero-logo"') +
           '<div><h1>' + FL.esc(club.name) + '</h1><p class="hero-sub" id="hero-sub">' + FL.esc(FL.leagueName(club.league)) +
-          '</p><div class="form" id="form"></div></div></div><div id="hero-next" class="hero-next"></div></div>'
+          '</p><div class="form" id="form"></div></div></a><div id="hero-next" class="hero-next"></div></div>'
         : '<div class="hero onboarding" id="hero"><h1>Bienvenue sur FootLivz</h1>' +
           '<p class="hero-sub">Choisis ton club de cœur : l\'application prendra ses couleurs et suivra ses matchs.</p>' +
           '<div id="picker" class="picker"></div></div>';

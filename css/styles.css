@@ -268,3 +268,5 @@ img { max-width: 100%; }
 .motm-star { font-size: 1.4rem; }
 .note-pill { margin-left: auto; min-width: 2.1rem; padding: .1rem .45rem; border-radius: 999px; text-align: center; font-size: .78rem; font-weight: 800; color: #fff; }
 .note-good { background: var(--win); } .note-mid { background: var(--draw); } .note-bad { background: var(--loss); }
+
+.hero-top { color: inherit; text-decoration: none; }
