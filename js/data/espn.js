@@ -374,7 +374,8 @@
                         pos: (p.position && p.position.abbreviation) || "",
                         starter: !!p.starter,
                         subIn: subFlag(p, "subbedIn"),
-                        subOut: subFlag(p, "subbedOut")
+                        subOut: subFlag(p, "subbedOut"),
+                        stats: stats
                     };
                 })
             };
@@ -392,7 +393,32 @@
             teamStats[tid] = m;
         });
 
-        return { match: match, events: events, lineups: lineups, teamStats: teamStats, statOrder: order };
+        // Tirs avec leur position (pour l'xG estimé)
+        var shots = [];
+        (o.commentary || []).forEach(function (c) {
+            var play = c.play;
+            if (!play) return;
+            var ptype = String((play.type && play.type.text) || "").toLowerCase();
+            var text = String(c.text || "").toLowerCase();
+            var isShot = (ptype.indexOf("shot") >= 0 || ptype.indexOf("attempt") >= 0 || ptype === "goal" || ptype.indexOf("goal") === 0 ||
+                (ptype.indexOf("penalty") >= 0 && (ptype.indexOf("scored") >= 0 || ptype.indexOf("saved") >= 0 || ptype.indexOf("missed") >= 0)) ||
+                ptype.indexOf("header") >= 0) && ptype.indexOf("own goal") < 0 && ptype.indexOf("shootout") < 0 && !play.shootout;
+            if (!isShot) return;
+            var x = Number(play.fieldPositionX), y = Number(play.fieldPositionY);
+            if (play.fieldPositionX == null || play.fieldPositionY == null || isNaN(x) || isNaN(y)) return;
+            if (x <= 1 && y <= 1) { x *= 100; y *= 100; }
+            if (x < 50) { x = 100 - x; y = 100 - y; }
+            shots.push({
+                teamId: play.team && play.team.id ? String(play.team.id) : null,
+                teamName: (play.team && (play.team.displayName || play.team.name)) || (c.team && c.team.displayName) || "",
+                x: x, y: y,
+                isGoal: !!play.scoringPlay || ptype.indexOf("goal") === 0,
+                isPenalty: ptype.indexOf("penalty") >= 0,
+                isHeader: ptype.indexOf("header") >= 0 || text.indexOf("header") >= 0
+            });
+        });
+
+        return { match: match, events: events, lineups: lineups, teamStats: teamStats, statOrder: order, shots: shots };
     }
 
     function subFlag(p, key) {

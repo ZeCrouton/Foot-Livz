@@ -258,3 +258,13 @@ img { max-width: 100%; }
 @media (prefers-reduced-motion: reduce) {
     .skeleton, .live-dot { animation: none; }
 }
+
+/* xG, homme du match, notes des joueurs */
+.xg-box { text-align: center; }
+.xg-line { display: flex; align-items: center; justify-content: center; gap: .75rem; margin-top: .25rem; }
+.xg-line strong { font-size: 1.4rem; font-weight: 900; }
+.motm { display: flex; align-items: center; gap: .75rem; }
+.motm-main { flex: 1; }
+.motm-star { font-size: 1.4rem; }
+.note-pill { margin-left: auto; min-width: 2.1rem; padding: .1rem .45rem; border-radius: 999px; text-align: center; font-size: .78rem; font-weight: 800; color: #fff; }
+.note-good { background: var(--win); } .note-mid { background: var(--draw); } .note-bad { background: var(--loss); }

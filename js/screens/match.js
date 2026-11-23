@@ -85,12 +85,46 @@
     ];
     var statsHtml = "";
     var tids = [m.home.id, m.away.id];
+
+    // xG : vrais xG (Highlightly) après le match, sinon xG estimé d'après la position des tirs
+    var estX = FL.stats.teamXg(d);
+    var xgInfo = null;
+    (function () {
+        var real = m.state === "POST" ? FL.stats.realXgCached(m) : null;
+        if (real) xgInfo = { h: real.home, a: real.away, real: true };
+        else if (estX) xgInfo = { h: estX[m.home.id] || 0, a: estX[m.away.id] || 0, real: false };
+    })();
+    function xgBoxHtml(x) {
+        return x ? '<div class="card pad xg-box"><div class="muted small">' + (x.real ? "xG du match" : "xG estimé") + '</div>' +
+            '<div class="xg-line"><span>' + FL.esc(m.home.short) + '</span><strong>' + FL.stats.fmtXg(x.h) + " – " + FL.stats.fmtXg(x.a) + '</strong><span>' + FL.esc(m.away.short) + "</span></div>" +
+            (x.real ? '<div class="muted small">Source : Highlightly</div>' : "") + "</div>" : "";
+    }
+    function xgRowHtml(x) {
+        return x ? "<tr id=\"xg-row\"><td>" + FL.stats.fmtXg(x.h) + "</td><td class=\"stat-name\">" + (x.real ? "xG" : "xG estimé") + "</td><td>" + FL.stats.fmtXg(x.a) + "</td></tr>" : "";
+    }
+    var xgHtml = m.state === "POST" ? '<div id="xg-box">' + xgBoxHtml(xgInfo) + "</div>" : "";
+
+    var motmHtml = "";
+    var notes = {};
+    if (m.state === "POST") {
+        FL.stats.ratings(d).forEach(function (r) { notes[r.player.id] = r.note; });
+        var best = FL.stats.manOfTheMatch(d);
+        if (best) {
+            motmHtml = '<div class="card pad motm"><span class="motm-star">⭐</span><div class="motm-main"><div class="muted small">Homme du match</div><strong>' +
+                FL.esc(best.player.name) + " · " + FL.esc(best.teamId === m.home.id ? m.home.short : m.away.short) + '</strong></div>' + notePill(best.note) + "</div>";
+        }
+    }
+    function notePill(n) {
+        var c = n >= 7 ? "good" : n >= 5.5 ? "mid" : "bad";
+        return '<span class="note-pill note-' + c + '">' + FL.stats.fmt(n) + "</span>";
+    }
     var hs = d.teamStats[tids[0]] || {}, as = d.teamStats[tids[1]] || {};
     var statRowsHtml = STAT_ROWS.filter(function (r) { return hs[r[0]] != null && as[r[0]] != null; }).map(function (r) {
         var pct = r[0] === "possessionPct";
         function fmt(v) { return pct ? Math.round(parseFloat(String(v).replace(",", "."))) + " %" : v; }
         return "<tr><td>" + FL.esc(fmt(hs[r[0]])) + "</td><td class=\"stat-name\">" + FL.esc(r[1]) + "</td><td>" + FL.esc(fmt(as[r[0]])) + "</td></tr>";
     }).join("");
+    statRowsHtml = xgRowHtml(xgInfo) + statRowsHtml;
     if (statRowsHtml) {
         statsHtml = '<h3 class="day-title">Statistiques</h3><div class="card table-wrap"><table class="table"><tbody>' + statRowsHtml + "</tbody></table></div>";
     }
@@ -100,7 +134,8 @@
         var bench = lu.players.filter(function (p) { return !p.starter; });
         return '<div class="card"><h4>' + FL.esc(nameOf[lu.teamId] || "") + (lu.formation ? " · " + FL.esc(lu.formation) : "") + "</h4>" +
             starters.map(function (p) {
-                return '<div class="list-row"><span class="rank">' + FL.esc(p.jersey) + "</span><span>" + FL.esc(p.name) + "</span><small>" + FL.esc(p.pos) + "</small></div>";
+                return '<div class="list-row"><span class="rank">' + FL.esc(p.jersey) + "</span><span>" + FL.esc(p.name) + "</span><small>" + FL.esc(p.pos) + "</small>" +
+                    (notes[p.id] != null ? notePill(notes[p.id]) : "") + "</div>";
             }).join("") +
             (bench.length ? "<p class=\"muted\">Remplaçants : " + bench.map(function (p) { return FL.esc(p.name); }).join(", ") + "</p>" : "") +
             "</div>";
@@ -132,10 +167,43 @@
         function ymd(ms) { var d = new Date(ms); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
         var after = ymd(m.date - 86400000), before2 = ymd(m.date + 4 * 86400000);
         var pressQuery = kh + " " + ka + " after:" + after + " before:" + before2;
-        pressHtml = '<h3 class="day-title">Dans la presse</h3><div class="card" id="press-block"><p class="loading">Chargement…</p></div>';
+        pressHtml = '<h3 class="day-title">Dans la presse</h3><div class="card" id="press-block"><p class="loading">Chargement…</p></div>' +
+            '<h3 class="day-title">Les notes de la presse</h3><div class="card" id="notes-block"><p class="loading">Chargement…</p></div>';
     }
 
-    app.innerHTML = FL.staleBanner(f) + header + contextHtml + eventsHtml + statsHtml + lineupsHtml + pressHtml;
+    app.innerHTML = FL.staleBanner(f) + header + contextHtml + eventsHtml + xgHtml + motmHtml + statsHtml + lineupsHtml + pressHtml;
+
+    // Vrais xG (Highlightly) : récupérés après l'affichage, puis la zone est mise à jour
+    if (m.state === "POST" && !(xgInfo && xgInfo.real)) {
+        FL.stats.realXg(m).then(function (r) {
+            if (!r) return;
+            var x = { h: r.home, a: r.away, real: true };
+            var box = document.getElementById("xg-box");
+            if (box) box.innerHTML = xgBoxHtml(x);
+            var row = document.getElementById("xg-row");
+            if (row) row.outerHTML = xgRowHtml(x);
+        });
+    }
+
+    // Notes de la presse (liens vers les articles ; on ne recopie pas les notes des journaux)
+    if (m.state === "POST") {
+        (async function () {
+            var nb = document.getElementById("notes-block");
+            if (!nb) return;
+            var gq = encodeURIComponent("notes " + m.home.short + " " + m.away.short);
+            var link = '<div class="list-row"><a href="https://news.google.com/search?q=' + gq + '&hl=fr&gl=FR&ceid=FR:fr" target="_blank" rel="noopener">🔎 Chercher les notes dans la presse</a></div>';
+            try {
+                var f3 = await FL.news.load("notes " + kh + " " + ka + " after:" + after + " before:" + before2, false);
+                var its = f3.data.filter(function (a) {
+                    var t = FL.norm(a.title);
+                    return (t.indexOf("note") >= 0 || t.indexOf("les tops") >= 0 || t.indexOf("tops et flops") >= 0) && (t.indexOf(kh) >= 0 || t.indexOf(ka) >= 0) && (!a.date || a.date >= m.date);
+                }).slice(0, 4);
+                nb.innerHTML = its.map(function (a) {
+                    return '<div class="list-row"><a href="' + FL.esc(a.link) + '" target="_blank" rel="noopener">' + FL.esc(a.title) + '</a><small>' + FL.esc(a.source) + "</small></div>";
+                }).join("") + link;
+            } catch (e) { nb.innerHTML = link; }
+        })();
+    }
 
     // Chargement des articles APRÈS mise à jour du DOM
     if (m.state === "POST") {
