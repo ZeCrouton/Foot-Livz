@@ -136,6 +136,8 @@
 
     function evType(raw) {
         var r = (raw || "").toLowerCase();
+        // Interruption de jeu (« Start Delay » / « End Delay ») : pas un repère de période
+        if (r.indexOf("delay") >= 0) return "OTHER";
         if (r.indexOf("own goal") >= 0) return "OWN_GOAL";
         if (r.indexOf("penalty") >= 0 && (r.indexOf("scored") >= 0 || r.indexOf("goal") >= 0)) return "PENALTY_GOAL";
         if (r.indexOf("goal") === 0 || r === "goal" || (r.indexOf("goal") >= 0 && r.indexOf("kick") < 0 && r.indexOf("disallowed") < 0)) return "GOAL";
