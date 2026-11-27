@@ -613,6 +613,17 @@
             }).filter(Boolean).sort(function (x, y) { return x.date - y.date; });   // ESPN renvoie parfois du plus récent au plus ancien
         },
 
+        // Matchs joués d'une équipe, toutes compétitions (championnat, coupes d'Europe, coupe nationale)
+        teamResults: async function (team, force) {
+            var res = await Promise.allSettled(FL.searchLeaguesFor(team).map(function (lg) {
+                return FL.espn.schedule(lg, team.id, false, force);
+            }));
+            if (res.every(function (r) { return r.status === "rejected"; })) throw new Error("offline");
+            var all = [];
+            res.forEach(function (r) { if (r.status === "fulfilled") all = all.concat(r.value); });
+            return sortByDate(FL.uniqueMatches(all));
+        },
+
         // Matchs à venir (et récents) d'une équipe, toutes compétitions
         teamFixtures: async function (team, force) {
             var res = await Promise.allSettled(FL.searchLeaguesFor(team).map(function (lg) {

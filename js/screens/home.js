@@ -123,7 +123,7 @@
         if (!hasClub) return;
         {
             try {
-                var past = await FL.espn.schedule(club.league, club.id, false, force);
+                var past = await FL.espn.teamResults(club, force);
                 var done = past.filter(function (m) { return m.state === "POST"; }).sort(function (a, b) { return a.date - b.date; });
                 var last = done.slice(-5);
                 document.getElementById("form").innerHTML = last.map(function (m) {

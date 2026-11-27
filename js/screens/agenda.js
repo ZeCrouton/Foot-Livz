@@ -59,7 +59,7 @@
         try {
             var since = Date.now() - 7 * 86400000;
             // force : le calendrier mis en cache avant la fin d'un match ne le montrerait pas comme terminé
-            var r = await Promise.allSettled(teams.map(function (t) { return FL.espn.schedule(t.league, t.id, false, true); }));
+            var r = await Promise.allSettled(teams.map(function (t) { return FL.espn.teamResults(t, true); }));
             var all = [];
             r.forEach(function (x) { if (x.status === "fulfilled") all = all.concat(x.value); });
             resMy = FL.uniqueMatches(all)

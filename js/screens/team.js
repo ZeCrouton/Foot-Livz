@@ -44,7 +44,7 @@
     document.title = team.name + " - FootLivz";
 
     var settled = await Promise.allSettled([
-        FL.espn.schedule(league, id, false, false),
+        FL.espn.teamResults(teamObj, false),
         FL.espn.teamFixtures(teamObj, false),
         FL.hasTable(league) ? FL.espn.standings(league, false) : Promise.resolve(null),
         FL.espn.roster(league, id, false)
